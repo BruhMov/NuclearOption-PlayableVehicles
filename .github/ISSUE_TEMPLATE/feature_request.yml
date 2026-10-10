@@ -1,0 +1,22 @@
+name: Idea or suggestion
+description: Something the mod could do better or a feature you'd like to see
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        English or Russian is fine. / Можно писать по-русски.
+
+  - type: textarea
+    id: idea
+    attributes:
+      label: Your idea
+      description: What would you like to see, and in what situation would it help?
+    validations:
+      required: true
+
+  - type: textarea
+    id: details
+    attributes:
+      label: Anything else
+      description: Examples from the game, other mods, screenshots.

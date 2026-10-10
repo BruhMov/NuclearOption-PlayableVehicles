@@ -1,0 +1,76 @@
+name: Bug report
+description: Something doesn't work or behaves strangely
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report this. English or Russian is fine. / Можно писать по-русски.
+
+  - type: input
+    id: mod-version
+    attributes:
+      label: Mod version
+      description: Shown on the Releases page you downloaded from, or in `BepInEx\LogOutput.log` ("Playable Vehicles X.Y.Z initializing").
+      placeholder: "1.0.0"
+    validations:
+      required: true
+
+  - type: input
+    id: game-version
+    attributes:
+      label: Game version
+      description: Also written near the top of `BepInEx\LogOutput.log` ("Game version X.Y.Z").
+      placeholder: "0.34.1"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: mode
+    attributes:
+      label: Where did it happen?
+      options:
+        - Single player
+        - Multiplayer, I was the host
+        - Multiplayer, I was a client
+    validations:
+      required: true
+
+  - type: input
+    id: vehicle
+    attributes:
+      label: Vehicle and mission
+      description: Which vehicle you were in and which mission or map, if it matters.
+      placeholder: "Spearhead MBT, Escalation"
+
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: What you expected and what you got instead. Screenshots or a short video help a lot.
+    validations:
+      required: true
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: How to reproduce
+      description: The steps that lead to the problem, if you can repeat it.
+      placeholder: |
+        1. Buy a vehicle at a depot
+        2. Drive to ...
+        3. Press ...
+
+  - type: textarea
+    id: log
+    attributes:
+      label: Log file
+      description: |
+        Drag `BepInEx\LogOutput.log` from your game folder into this box. If the game crashed, please also attach
+        `Player.log` (type `%USERPROFILE%\AppData\LocalLow\Shockfront\NuclearOption` into the Explorer address bar).
+
+  - type: textarea
+    id: other-mods
+    attributes:
+      label: Other mods
+      description: Other BepInEx plugins you have installed, if any.
