@@ -1,220 +1,219 @@
-# Playable Ground Vehicles для Nuclear Option
+# Playable Ground Vehicles for Nuclear Option
 
-*English version: [README.en.md](README.en.md)*
+*Русская версия: [README.ru.md](README.ru.md)*
 
-В Nuclear Option по земле воюют сотни машин, но игрок видит их только из кабины самолёта. Этот мод даёт сесть за
-руль: танка, БМП, ЗРК, артиллерии, грузовика снабжения или тягача. Машину можно купить на базе техники своей фракции и
-сразу выехать на ней в бой, в одиночной игре или по сети.
+Nuclear Option has hundreds of vehicles fighting on the ground, yet you only ever see them from a cockpit. This mod
+puts you behind the wheel: tanks, IFVs, SAM launchers, artillery, supply trucks and tractors. Buy a vehicle at one of
+your faction's depots and drive it straight into the fight, in single player or online.
 
-Всё сделано так, чтобы мод ощущался частью игры. Интерфейс собран из элементов родного HUD, цены взяты из игры,
-награды за уничтожение, захват баз и снабжение начисляются по тем же правилам, что и пилотам.
+The goal is for the mod to feel like part of the game. The HUD is assembled from the game's own HUD pieces, prices
+come from the game, and kills, base captures and resupply are rewarded by the same rules that apply to pilots.
 
-> Это неофициальный мод. Разработчики Nuclear Option к нему отношения не имеют.
+> This is an unofficial mod. It is not affiliated with the developers of Nuclear Option.
 
-## Что умеет мод
+## Features
 
-- **Покупка техники** на базах своей фракции по игровым ценам. Можно купить прямо с тактической карты, не покидая
-  самолёт, или выбрать режим GROUND на экране появления и начать игру сразу на земле.
-- **Вождение** от третьего лица. Физика повторяет ту, на которой ездят машины ИИ: подвеска, сцепление с грунтом, по
-  дороге быстрее, чем по бездорожью.
-- **Стрельба** из всех орудий машины: пушки, пулемёты, ПТУР, зенитные ракеты. Можно захватить цель, а прицел с
-  кругом перезарядки показывает, куда уйдёт снаряд.
-- **Артиллерия и ракетные комплексы.** Компьютер наводчика подсказывает решение для стрельбы прямой наводкой или
-  навесом, цель выбирается на карте. Работают и баллистические, и зенитные ракеты.
-- **Захват баз**: въезжаете на вражеский или нейтральный аэродром и видите, как идёт захват.
-- **Снабжение**: на грузовике снабжения можно подвозить боеприпасы машинам, которые их запросили, и получать за это
-  награду, как пилот транспортника.
-- **Буксировка и перевозка**: тягач возит колёсные пусковые установки, бортовой грузовик возит контейнеры.
-- **Предупреждение о ракетах**, направление попаданий, маркеры своих и чужих, мини-карта.
+- **Buy vehicles** at your faction's depots for the in-game price. Order one from the tactical map without leaving
+  your aircraft, or pick GROUND on the spawn screen and start the match on the ground.
+- **Drive** in third person. The handling follows the same physics the AI vehicles use: suspension, grip, and more
+  speed on roads than off them.
+- **Fight** with every weapon the vehicle has: cannons, machine guns, ATGMs, SAMs. Lock targets, and the reticle with
+  its reload ring shows where your shot will land.
+- **Artillery and missile launchers.** A fire control computer works out direct or indirect fire, and you pick the
+  target on the map. Ballistic and anti-air missiles are both supported.
+- **Capture bases**: drive onto an enemy or neutral airfield and watch the capture progress.
+- **Resupply**: take a supply truck to vehicles that asked for ammo and get paid for it, just like a transport pilot.
+- **Towing and cargo**: a tractor can tow wheeled launchers, a flatbed truck can carry containers.
+- **Missile warnings**, hit direction indicators, friend/foe markers and a minimap.
 
-## Установка
+## Installation
 
-1. Установите BepInEx 5. Проще всего взять готовую сборку для Nuclear Option на
-   [Thunderstore](https://thunderstore.io/c/nuclear-option/p/BepInEx/BepInExPack/) и следовать инструкции на её
-   странице. Подойдёт и обычный [BepInEx 5](https://github.com/BepInEx/BepInEx/releases) для Windows x64.
-2. Запустите игру один раз и закройте её, чтобы BepInEx создал свои папки.
-3. Скачайте файл `PlayableVehicles.dll` со страницы
-   [Releases](https://github.com/Rap3/NuclearOption-PlayableVehicles/releases).
-4. Положите его в папку `BepInEx\plugins` внутри папки игры. Саму папку игры проще всего открыть через Steam: правой
-   кнопкой по игре в библиотеке → «Управление» → «Просмотреть локальные файлы».
-5. Запустите игру. Если всё получилось, на базах техники на карте появятся отметки, а на экране появления —
-   переключатель AIR / GROUND.
+1. Install BepInEx 5. The easiest way is the ready-made pack for Nuclear Option on
+   [Thunderstore](https://thunderstore.io/c/nuclear-option/p/BepInEx/BepInExPack/), just follow the steps on its page.
+   Regular [BepInEx 5](https://github.com/BepInEx/BepInEx/releases) for Windows x64 works too.
+2. Launch the game once and close it, so BepInEx can create its folders.
+3. Download `PlayableVehicles.dll` from the
+   [Releases](https://github.com/Rap3/NuclearOption-PlayableVehicles/releases) page.
+4. Put it into the `BepInEx\plugins` folder inside your game folder. The quickest way to open the game folder is
+   through Steam: right-click the game in your library, then Manage → Browse local files.
+5. Start the game. If everything worked, vehicle depots get a marker on the map and the spawn screen shows an
+   AIR / GROUND switch.
 
-**Удаление:** удалите `BepInEx\plugins\PlayableVehicles.dll`.
+**To uninstall**, delete `BepInEx\plugins\PlayableVehicles.dll`.
 
-## Управление
+## Controls
 
-| Клавиша | Действие |
+| Key | Action |
 |---|---|
-| F7 | Сесть в выбранную машину или выйти из неё |
-| F7 на своей базе техники, выбранной на карте | Открыть меню покупки |
-| W A S D | Газ, тормоз и задний ход, руль |
-| Мышь | Обзор и наведение башни |
-| Огонь (ЛКМ) | Выстрел выбранным оружием |
-| ПКМ | Оптический прицел |
-| Колесо мыши | Отдалить или приблизить камеру |
-| Tab, 1 / 2 / 3 | Переключение оружия |
-| Target Select / Target Cancel | Захватить цель под прицелом / сбросить захват |
-| X | Развернуть или свернуть машину (опоры артиллерии, мачта радара); на тягаче — прицепить или отцепить прицеп; на бортовом грузовике — погрузить или выгрузить контейнер |
-| B | Компьютер наводчика (у развёрнутой артиллерии и ракетных установок) |
+| F7 | Get in the selected vehicle, or get out |
+| F7 with your own depot selected on the map | Open the vehicle shop |
+| W A S D | Throttle, brake and reverse, steering |
+| Mouse | Look around and aim the turret |
+| Fire (LMB) | Fire the selected weapon |
+| RMB | Gun sight |
+| Mouse wheel | Camera distance |
+| Tab, 1 / 2 / 3 | Switch weapons |
+| Target Select / Target Cancel | Lock the target under the reticle / drop the lock |
+| X | Deploy or stow (artillery outriggers, radar masts); on a tractor, hitch or unhitch a trailer; on a flatbed, load or unload a container |
+| B | Fire control computer (deployed artillery and missile launchers) |
 
-Выбрать машину, чтобы в неё сесть, можно тремя способами: кнопкой Target Select из самолёта, кликом на тактической
-карте (M) или просто наведя на неё камеру. Когда выходите, камера возвращается к вашему самолёту, а если его нет,
-открывается экран появления.
+There are three ways to pick a vehicle to get into: press Target Select on it from your aircraft, click it on the
+tactical map (M), or simply point the camera at it. When you get out, the camera goes back to your aircraft, or to
+the spawn screen if you don't have one.
 
-Огонь, захват цели, переключение оружия и обзор работают через настройки управления самой игры, поэтому ваши
-переназначения клавиш и чувствительность мыши сохраняются. Геймпад тоже поддерживается: назначьте стик на
-Move Forward/Back и Move Left/Right в меню управления игры. Пока открыт чат, клавиши мода не срабатывают.
+Fire, target lock, weapon switching and camera controls go through the game's own control settings, so your key
+bindings and mouse sensitivity carry over. Gamepads work too: bind a stick to Move Forward/Back and Move Left/Right in
+the game's controls menu. The mod's keys are ignored while the chat is open.
 
-## Покупка техники
+## Buying vehicles
 
-Базы техники своей фракции отмечены на тактической карте. Выберите базу и нажмите F7. Откроется меню, похожее на
-меню выбора самолёта: техника разбита по типам, у каждой машины видно цену, вооружение и описание. Кнопка DEPLOY
-покупает машину и сразу сажает вас в неё. Если вы прилетели на самолёте, его на это время подхватит автопилот.
+Your faction's vehicle depots are marked on the tactical map. Select one and press F7. A shop opens that looks like
+the aircraft selection screen: vehicles are grouped by type, and each one shows its price, weapons and description.
+DEPLOY buys the vehicle and puts you in it right away. If you came in an aircraft, the autopilot keeps it flying
+meanwhile.
 
-Если самолёта нет, на экране появления переключитесь в режим GROUND, выберите базу на карте и откройте меню техники
-кнопкой внизу экрана.
+No aircraft? Switch the spawn screen to GROUND, pick a depot on the map and open the shop with the button at the
+bottom of the screen.
 
-Несколько правил:
-- Купленная машина ваша: награды за то, что уничтожат её орудия, получаете вы, даже когда сидите в другой технике.
-- После покупки есть небольшая пауза, своя для каждого типа техники, от 10 до 25 секунд.
-- Пусковые с ядерными ракетами открываются по тем же правилам эскалации и звания, что и ядерное оружие самолётов.
-- Если миссия запрещает пожертвования фракции, покупка тоже недоступна.
+A few rules:
+- A vehicle you buy belongs to you: you get the reward for anything its guns destroy, even while you're driving
+  something else.
+- There's a short cooldown after each purchase, between 10 and 25 seconds depending on the vehicle type.
+- Nuclear missile launchers unlock under the same escalation and rank rules as nuclear weapons for aircraft.
+- If the mission doesn't allow donations to your faction, the shop is closed too.
 
-## Артиллерия и ракеты
+## Artillery and missiles
 
-Разверните машину клавишей X и откройте компьютер наводчика клавишей B. Справа появится окно управления огнём,
-слева карта. Выберите цель кликом по карте или захватом, затем способ стрельбы: прямой наводкой или навесом. Окно
-покажет дальность, угол и время полёта снаряда. После ENGAGE башня сама наводится на цель, стреляете вы обычной
-кнопкой огня. CEASE FIRE отменяет задачу.
+Deploy the vehicle with X and open the fire control computer with B. A fire control window appears on the right and
+the map on the left. Choose a target by clicking it on the map or by locking it, then pick direct or indirect fire.
+The window shows the range, elevation and time of flight. Press ENGAGE and the turret lays itself onto the target;
+you fire with the normal fire button. CEASE FIRE cancels the mission.
 
-Так же работают ракетные установки. Баллистическим ракетам нужна наземная цель в пределах дальности. Зенитным
-нужна воздушная цель, а ракетам с полуактивной головкой ещё и радар рядом: свой на машине или дружественный в
-радиусе 300 метров.
+Missile launchers work the same way. Ballistic missiles need a ground target within range. Anti-air missiles need an
+air target, and semi-active radar missiles also need a radar nearby: either the vehicle's own or a friendly one
+within 300 metres.
 
-## Буксировка и перевозка
+## Towing and cargo
 
-В игре стационарные установки перевозят только вертолётом. Мод добавляет перевозку по земле:
+In the base game, emplacements can only be moved by helicopter. The mod lets you move them by road:
 
-- **Прицепы** (HLT-CRAM, HLT-HEL). Подъедьте тягачом задом к дышлу прицепа и нажмите X. Прицеп поднимет опоры и
-  поедет следом. Повторное нажатие X отцепляет его, через пару секунд стоянки он сам развернётся.
-- **Контейнеры** (Radar Container, пусковые Boltstrike RAM45 и StratoLance R9). Встаньте бортовым грузовиком рядом с
-  контейнером и нажмите X, он окажется в кузове. Повторное X выгружает его на землю позади машины.
+- **Trailers** (HLT-CRAM, HLT-HEL). Back a tractor up to the trailer's tow bar and press X. The trailer raises its
+  legs and follows you. Press X again to unhitch; after a couple of seconds standing still it deploys on its own.
+- **Containers** (Radar Container, Boltstrike RAM45 and StratoLance R9 launchers). Stop a flatbed truck next to the
+  container and press X to load it. Press X again to drop it on the ground behind the truck.
 
-> Буксировка пока сырая. Прицеп может вести себя странно на склонах и неровностях, сцепка иногда рвётся или не
-> срабатывает с первого раза. Если столкнулись с проблемой, расскажите о ней в
+> Towing is still rough. Trailers can misbehave on slopes and bumpy ground, and the hitch may break or fail to
+> connect on the first try. If you run into trouble, please report it in
 > [Issues](https://github.com/Rap3/NuclearOption-PlayableVehicles/issues).
 
-## Снабжение
+## Resupply
 
-Когда боеприпасов становится меньше половины, машина запрашивает снабжение. Остановитесь рядом с дружественным
-грузовиком снабжения или складом, и боезапас начнёт пополняться. Свободный грузовик ИИ может приехать и сам.
+When a vehicle drops below half its ammo, it asks for resupply. Park next to a friendly supply truck or ammo depot
+and it will be topped up. An idle AI supply truck may also come to you.
 
-Можно и самому сесть за руль грузовика снабжения. Список ближайших заявок виден прямо на экране. Подвезли
-боеприпасы к стоящей машине — получили награду.
+You can drive a supply truck yourself as well. Nearby requests are listed on screen; bring ammo to a vehicle that is
+standing still and you get the reward.
 
-## Мультиплеер
+## Multiplayer
 
-Мод должен быть установлен у хоста и у всех, кто хочет садиться в технику, причём одной версии. Если версии не
-совпадают, мод сообщит, кому нужно обновиться. Игроки без мода спокойно играют на таком сервере, просто не могут
-водить технику.
+The host and everyone who wants to drive need the mod, and all on the same version. If the versions don't match,
+the mod tells you who needs to update. Players without the mod can still play on the server, they just can't drive.
 
-Хост может разрешить игрокам садиться только в свою, купленную ими технику. Для этого в файле настроек мода в разделе
-`[Server]` нужно указать `VehicleAccess = OwnVehicles`.
+The host can restrict players to vehicles they bought themselves: set `VehicleAccess = OwnVehicles` in the
+`[Server]` section of the mod's settings file.
 
-## Настройки
+## Settings
 
-После первого запуска в папке игры появится файл `BepInEx\config\PlayableVehicles.cfg`. Описания
-внутри файла на английском, ниже то же самое по-русски. Редактируйте файл при закрытой игре. Клавиши указываются
-названиями Unity: `F7`, `X`, `UpArrow`, `Keypad5` и так далее.
+After the first launch, the file `BepInEx\config\PlayableVehicles.cfg` appears in your game folder.
+Every setting has a short description inside the file; here is the full list. Edit the file while the game is closed.
+Keys use Unity key names: `F7`, `X`, `UpArrow`, `Keypad5` and so on.
 
-**[Controls] — управление**
+**[Controls]**
 
-| Настройка | По умолчанию | Что делает |
+| Setting | Default | What it does |
 |---|---|---|
-| ToggleKey | F7 | Сесть в выбранную машину или выйти. На своей базе техники, выбранной на карте, открывает меню покупки |
-| DeployKey | X | Развернуть или свернуть машину (только стоя). На тягаче прицепляет и отцепляет прицеп, на бортовом грузовике грузит и выгружает контейнер |
-| FireControlKey | B | Компьютер наводчика у развёрнутой артиллерии и ракетных установок |
-| ForwardKey, ReverseKey, LeftKey, RightKey | W, S, A, D | Газ, тормоз и задний ход, руль влево и вправо |
-| StickDeadZone | 0.15 | Мёртвая зона стика геймпада для газа и руля, доля хода стика |
-| GameViewControls | true | Камера управляется настройками обзора самой игры, с её чувствительностью и инверсией. `false` включает собственный обзор мышью мода (чувствительность задаётся в `[Camera]`) |
+| ToggleKey | F7 | Get in the selected vehicle or get out. With your own depot selected on the map, opens the vehicle shop |
+| DeployKey | X | Deploy or stow the vehicle (only while standing still). On a tractor it hitches and unhitches a trailer, on a flatbed it loads and unloads a container |
+| FireControlKey | B | Fire control computer for deployed artillery and missile launchers |
+| ForwardKey, ReverseKey, LeftKey, RightKey | W, S, A, D | Throttle, brake and reverse, steering |
+| StickDeadZone | 0.15 | Gamepad stick dead zone for throttle and steering, as a fraction of the stick travel |
+| GameViewControls | true | The camera uses the game's own view controls, with its sensitivity and inversion. `false` switches to the mod's own mouse look (sensitivity is set in `[Camera]`) |
 
-**[Server] — правила сервера** (действуют у хоста и в одиночной игре)
+**[Server]** (applies on the host and in single player)
 
-| Настройка | По умолчанию | Что делает |
+| Setting | Default | What it does |
 |---|---|---|
-| VehicleAccess | Open | `Open` — можно садиться в любую технику своей фракции. `OwnVehicles` — только в купленную вами. Технику, которую игрок привёз вертолётом или сбросил с самолёта, может водить любой игрок фракции |
-| HostFollowsAccess | true | Правило VehicleAccess действует и на самого хоста. `false` — хост садится в любую технику |
-| PurchaseCooldownLight | 10 | Пауза после покупки лёгкой техники (грузовики, лёгкие машины, БТР и БМП, беспилотники), секунд |
-| PurchaseCooldownAirDefense | 15 | Пауза после покупки ПВО (зенитки, ЗРК, радары), секунд |
-| PurchaseCooldownTanks | 25 | Пауза после покупки танка, секунд |
-| PurchaseCooldownArtillery | 25 | Пауза после покупки артиллерии, в том числе реактивной, секунд |
+| VehicleAccess | Open | `Open`: players can get into any vehicle of their faction. `OwnVehicles`: only into vehicles they bought. Vehicles a player brought in by helicopter or dropped from an aircraft stay open to the whole faction |
+| HostFollowsAccess | true | The VehicleAccess rule also applies to the host. `false` lets the host get into anything |
+| PurchaseCooldownLight | 10 | Cooldown after buying a light vehicle (trucks, light vehicles, APCs and IFVs, drones), seconds |
+| PurchaseCooldownAirDefense | 15 | Cooldown after buying air defence (AA guns, SAM launchers, radars), seconds |
+| PurchaseCooldownTanks | 25 | Cooldown after buying a tank, seconds |
+| PurchaseCooldownArtillery | 25 | Cooldown after buying artillery, rocket artillery included, seconds |
 
-**[Aircraft] — самолёт**
+**[Aircraft]**
 
-| Настройка | По умолчанию | Что делает |
+| Setting | Default | What it does |
 |---|---|---|
-| Autopilot | true | Пока вы в технике, самолёт кружит над местом, где вы его оставили, а вертолёт висит на месте. `false` — самолёт остаётся с ручкой в нейтрали |
+| Autopilot | true | While you're in a vehicle, your aircraft circles where you left it and a helicopter hovers. `false` leaves the controls centred |
 
-**[Aiming] — прицеливание**
+**[Aiming]**
 
-| Настройка | По умолчанию | Что делает |
+| Setting | Default | What it does |
 |---|---|---|
-| BallisticComputer | true | Башня сама учитывает падение снаряда, и он прилетает туда, куда смотрит прицел. `false` — ствол смотрит ровно в прицел, поправку на дальность делаете сами по метке ствола |
-| LockAutoTrack | true | Башня сама ведёт захваченную цель с упреждением. `false` — башня идёт за прицелом, а точка упреждения показывается на экране |
-| LockScreenRadius | 0.08 | Как далеко от центра экрана искать цель для захвата, доля высоты экрана |
+| BallisticComputer | true | The turret allows for shell drop, so the shot lands where the crosshair points. `false`: the barrel points straight at the crosshair and you correct for range yourself using the barrel marker |
+| LockAutoTrack | true | The turret tracks a locked target by itself, with lead. `false`: the turret follows the crosshair and the lead point is shown on screen |
+| LockScreenRadius | 0.08 | How far from the screen centre Target Select looks for a target, as a fraction of the screen height |
 
-**[Driving] — вождение**
+**[Driving]**
 
-| Настройка | По умолчанию | Что делает |
+| Setting | Default | What it does |
 |---|---|---|
-| VanillaPhysics | true | Физика машин ИИ: подвеска, сцепление, разгон и скорость каждой машины. `false` — упрощённое аркадное управление |
-| TurnRate | 38 | Скорость поворота корпуса при полном руле, градусов в секунду. С физикой ИИ не больше 57 |
-| Acceleration | 14 | Только для аркадного управления: разгон и торможение, м/с за секунду |
-| ThrottleDeadzone | 0.1 | Газ с геймпада меньше этой доли считается нулевым, и машина тормозит |
-| FullSteeringSpeed | 4 | Колёсная техника: с какой скорости (м/с) руль поворачивает в полную силу. На месте колёсные машины не разворачиваются |
-| ReverseSpeedFactor | 0.45 | Скорость заднего хода, доля от максимальной скорости машины |
+| VanillaPhysics | true | AI vehicle physics: suspension, grip, each vehicle's own acceleration and top speed. `false` switches to simplified arcade driving |
+| TurnRate | 38 | Hull turn rate at full steering, degrees per second. Capped at 57 with AI physics |
+| Acceleration | 14 | Arcade driving only: acceleration and braking, m/s per second |
+| ThrottleDeadzone | 0.1 | Gamepad throttle below this fraction counts as zero and the vehicle brakes |
+| FullSteeringSpeed | 4 | Wheeled vehicles: speed (m/s) at which steering reaches full strength. Wheeled vehicles can't turn on the spot |
+| ReverseSpeedFactor | 0.45 | Reverse speed as a fraction of the vehicle's top speed |
 
-**[Camera] — камера**
+**[Camera]**
 
-| Настройка | По умолчанию | Что делает |
+| Setting | Default | What it does |
 |---|---|---|
-| MouseSensitivityX, MouseSensitivityY | 2.2, 1.4 | Чувствительность мыши по горизонтали и вертикали. Работает только при `GameViewControls = false` |
-| Distance | 11.5 | Расстояние от камеры до машины при посадке, метров |
-| MaxDistance | 25 | Насколько далеко можно отвести камеру колесом мыши, метров |
-| ZoomFov | 6 | Угол обзора в оптическом прицеле, градусов. Меньше — сильнее приближение |
-| ShakeScale | 1 | Сила тряски камеры от выстрелов, попаданий и взрывов рядом. 0 отключает тряску, 2 — максимум |
-| MaxLookUp | 80 | Насколько высоко можно поднять взгляд над горизонтом, градусов. Ствол всё равно не поднимется выше, чем позволяет башня |
+| MouseSensitivityX, MouseSensitivityY | 2.2, 1.4 | Horizontal and vertical mouse sensitivity. Only used with `GameViewControls = false` |
+| Distance | 11.5 | Camera distance from the vehicle when you get in, metres |
+| MaxDistance | 25 | How far the mouse wheel can pull the camera back, metres |
+| ZoomFov | 6 | Field of view in the gun sight, degrees. Lower means more zoom |
+| ShakeScale | 1 | Camera shake from shots, hits and nearby explosions. 0 turns it off, 2 is the maximum |
+| MaxLookUp | 80 | How high you can look above the horizon, degrees. The barrel still can't go past the turret's own limit |
 
-**[Overlay] — интерфейс**
+**[Overlay]**
 
-| Настройка | По умолчанию | Что делает |
+| Setting | Default | What it does |
 |---|---|---|
-| ShowOverlay | true | Показывать HUD техники. Выключать стоит только при поиске неполадок |
-| MinimapLookAhead | 2000 | На сколько метров вперёд по курсу смещён центр мини-карты. 0 — машина в центре |
-| UnitMarkerScale | 1 | Размер маркеров своих и чужих относительно HUD самолёта |
-| FriendlyIconRange | 500 | Ближе этого расстояния свои показаны полной иконкой, дальше точкой, метров |
-| EnemyIconRange | 3000 | Ближе этого расстояния враги показаны полной иконкой, дальше маленькой меткой, метров |
+| ShowOverlay | true | Show the vehicle HUD. Only worth turning off when troubleshooting |
+| MinimapLookAhead | 2000 | How many metres ahead of the vehicle the minimap is centred. 0 keeps the vehicle in the middle |
+| UnitMarkerScale | 1 | Size of friend/foe markers compared to the aircraft HUD |
+| FriendlyIconRange | 500 | Friendly units closer than this get a full icon, further ones a dot, metres |
+| EnemyIconRange | 3000 | Enemy units closer than this get a full icon, further ones a small marker, metres |
 
-Раздел `[Debug]` нужен только для разработки мода, менять его не нужно.
+The `[Debug]` section is only for mod development; leave it as it is.
 
-## Известные ограничения
+## Known issues
 
-- **Мультиплеер полноценно не тестировался.** Мод проверяли на двух копиях игры на одном компьютере, а по интернету с
-  реальным пингом ещё нет. Возможны рассинхронизация и другие сетевые проблемы.
-- **Буксировка сырая** (подробнее выше), особенно в мультиплеере: у игрока-клиента прицеп отстаёт от тягача на
-  величину пинга.
-- Выстрелы игрока-клиента обрабатывает хост, поэтому при большом пинге они уходят с задержкой.
-- Упреждение по движущейся цели рассчитывается только для захваченной цели.
-- Стационарные установки сами не ездят, как и в игре. В них можно только управлять башней, а перевозить их нужно
-  вертолётом, тягачом или грузовиком.
+- **Multiplayer hasn't been fully tested.** It was checked with two copies of the game on one PC, but not yet over
+  the internet with real latency. Desync and other network problems are possible.
+- **Towing is rough** (see above), especially in multiplayer: for a client, the trailer lags behind the tractor by
+  the ping.
+- A client's shots are handled by the host, so with high ping they go off with a delay.
+- Lead on moving targets is only calculated for a locked target.
+- Static emplacements don't drive on their own, same as in the base game. You can only control their turret; move
+  them by helicopter, tractor or truck.
 
-## Обратная связь
+## Feedback
 
-Нашли ошибку или есть идея — пишите в [Issues](https://github.com/Rap3/NuclearOption-PlayableVehicles/issues).
-Если игра повела себя странно, приложите файл `BepInEx\LogOutput.log` из папки игры: по нему проще понять, что
-случилось.
+Found a bug or have an idea? Open an [issue](https://github.com/Rap3/NuclearOption-PlayableVehicles/issues). If
+something went wrong in game, attach `BepInEx\LogOutput.log` from your game folder, it helps a lot.
 
-## Лицензия
+## License
 
-[MIT](LICENSE). Nuclear Option и все её материалы принадлежат их правообладателям, файлов игры мод не содержит.
+[MIT](LICENSE). Nuclear Option and all its content belong to their respective owners; the mod contains no game files.
