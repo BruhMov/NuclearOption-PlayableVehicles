@@ -34,8 +34,6 @@ namespace PlayableVehicles
         public static ConfigEntry<float> LockScreenRadius { get; private set; }
 
         public static ConfigEntry<bool> VanillaPhysics { get; private set; }
-        public static ConfigEntry<bool> DebugServer { get; private set; }
-        public static ConfigEntry<int> DebugPort { get; private set; }
         public static ConfigEntry<float> TurnRate { get; private set; }
         public static ConfigEntry<float> Acceleration { get; private set; }
         public static ConfigEntry<float> ThrottleDeadzone { get; private set; }
@@ -111,12 +109,6 @@ namespace PlayableVehicles
             LockScreenRadius = config.Bind("Aiming", "LockScreenRadius", 0.08f,
                 new ConfigDescription("How far from the screen centre Target Select looks for a target, as a fraction of the screen height",
                     new AcceptableValueRange<float>(0.01f, 0.5f)));
-
-            DebugServer = config.Bind("Debug", "Enabled", false,
-                "Debug server for mod development (HTTP on 127.0.0.1 only). Keep it off for normal play. While it is on, " +
-                "the game doesn't pause when its window loses focus");
-            DebugPort = config.Bind("Debug", "Port", 7799,
-                new ConfigDescription("Debug server port", new AcceptableValueRange<int>(1024, 65535)));
 
             VanillaPhysics = config.Bind("Driving", "VanillaPhysics", true,
                 "Drive with the same physics as AI vehicles: suspension, grip, and each vehicle's own acceleration and top speed " +

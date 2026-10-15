@@ -10,7 +10,7 @@ namespace PlayableVehicles
     {
         public const string Guid = "PlayableVehicles";
         public const string Name = "Nuclear Option Playable Ground Vehicles";
-        public const string Version = "1.0.0";
+        public const string Version = "1.0.2";
 
         private Harmony _harmony;
         private bool _ready;
@@ -64,11 +64,9 @@ namespace PlayableVehicles
             }
 
             VehicleSession.Initialize(gameObject);
-            DebugServer.Start(this);
 
             _updateTicks = new[]
             {
-                new GuardedTick("DebugServer.Tick", DebugServer.Tick),
                 new GuardedTick("NetBridge.Tick", NetBridge.Tick),
                 new GuardedTick("RemoteDrivers.Tick", RemoteDrivers.Tick),
                 new GuardedTick("TurretSync.ServerTick", TurretSync.ServerTick),
@@ -166,14 +164,6 @@ namespace PlayableVehicles
 
         private void OnDestroy()
         {
-            try
-            {
-                DebugServer.Stop();
-            }
-            catch (Exception e)
-            {
-                ModLog.Error("DebugServer.Stop failed: " + e);
-            }
             if (_ready)
             {
                 try

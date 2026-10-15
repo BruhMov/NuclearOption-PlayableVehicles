@@ -74,7 +74,7 @@ namespace PlayableVehicles
                 return;
             }
 
-            float reload = ReloadProgress(turrets.SelectedStation);
+            float reload = AmmoSync.Of(context.Vehicle, turrets.SelectedStation).ReloadProgress;
             bool reloading = reload > 0f;
             if (_gun.Readiness != null)
             {
@@ -87,17 +87,6 @@ namespace PlayableVehicles
                 if (_gun.Circle.enabled != ready) _gun.Circle.enabled = ready;
             }
             _gun.Cross.color = outOfRange ? HudStyle.Alert : reloading ? HudStyle.Alert + HudStyle.Normal * 0.5f : HudStyle.Normal;
-        }
-
-        private static float ReloadProgress(WeaponStation station)
-        {
-            if (station == null) return 0f;
-            float progress = 0f;
-            foreach (Weapon weapon in station.Weapons)
-            {
-                if (weapon != null) progress = Mathf.Max(progress, weapon.GetReloadProgress());
-            }
-            return progress;
         }
 
         public override void Dispose()

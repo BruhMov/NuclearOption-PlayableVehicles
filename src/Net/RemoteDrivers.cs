@@ -19,11 +19,21 @@ namespace PlayableVehicles
             public bool HasInputSeq;
             public ushort LastInputSeq;
             public float NextDamageDirectionTime;
+            public float NextEchoTime;
+            public float NextIncomingHitTime;
+            public PvStationAmmo[] AmmoSent;
+            public int AmmoSentCount;
+            public bool AmmoSentRearm;
+            public float NextAmmoTime;
+            public float AmmoKeepAliveTime;
         }
 
         private const float HitDedupWindow = 0.1f;
         private const float InputTimeout = 10f;
         private const float DamageDirectionInterval = 0.1f;
+        private const float EchoInterval = 0.2f;
+        private const float IncomingHitInterval = 1f / 30f;
+        private const byte NoStation = 255;
 
         private static readonly List<Session> _sessions = new List<Session>();
 
@@ -78,10 +88,20 @@ namespace PlayableVehicles
             Session session = Find(connection);
             if (session == null || session.Vehicle == null || session.Vehicle.persistentID.Id != message.VehicleId) return;
             session.LastInputTime = Time.unscaledTime;
-            if (session.HasInputSeq && unchecked((short)(message.Seq - session.LastInputSeq)) <= 0) return;
+            if (session.HasInputSeq)
+            {
+                int delta = unchecked((short)(message.Seq - session.LastInputSeq));
+                if (delta <= 0) return;
+            }
             session.HasInputSeq = true;
             session.LastInputSeq = message.Seq;
             session.Driver.ApplyRemoteInput(message);
+
+            if (Time.unscaledTime >= session.NextEchoTime)
+            {
+                session.NextEchoTime = Time.unscaledTime + EchoInterval;
+                connection.Send(new PvInputEcho { ClientTime = message.ClientTime }, Channel.Unreliable);
+            }
         }
 
         public static void OnDeploy(INetworkPlayer connection, PvDeploy message)
@@ -109,6 +129,10 @@ namespace PlayableVehicles
                 {
                     ModLog.Warning("Multiplayer: no input from the driver of " + session.Vehicle.unitName + " for " + InputTimeout + " s, session ended");
                     End(session, true);
+                }
+                else
+                {
+                    AmmoSync.ServerTick(session);
                 }
             }
         }
@@ -210,6 +234,39 @@ namespace PlayableVehicles
             {
                 VehicleId = session.Vehicle.persistentID.Id,
                 DirX = direction.x,
+                DirZ = direction.z,
+            }, Channel.Unreliable);
+        }
+
+        public static void OnIncomingBullet(Unit shooter, Unit hitUnit, Vector3 localPoint, Vector3 bulletVelocity, WeaponInfo weaponInfo)
+        {
+            if (_sessions.Count == 0) return;
+            Session session = FindByVehicle(hitUnit);
+            if (session == null || session.Connection == null || shooter == null || ReferenceEquals(shooter, hitUnit)) return;
+            if (Time.unscaledTime < session.NextIncomingHitTime) return;
+            if (bulletVelocity.sqrMagnitude < 0.01f) return;
+            session.NextIncomingHitTime = Time.unscaledTime + IncomingHitInterval;
+
+            byte station = NoStation;
+            for (int i = 0; i < shooter.weaponStations.Count && i < NoStation; i++)
+            {
+                if (shooter.weaponStations[i].WeaponInfo == weaponInfo)
+                {
+                    station = (byte)i;
+                    break;
+                }
+            }
+            Vector3 direction = bulletVelocity.normalized;
+            session.Connection.Send(new PvIncomingHit
+            {
+                VehicleId = session.Vehicle.persistentID.Id,
+                ShooterId = shooter.persistentID.Id,
+                Station = station,
+                X = localPoint.x,
+                Y = localPoint.y,
+                Z = localPoint.z,
+                DirX = direction.x,
+                DirY = direction.y,
                 DirZ = direction.z,
             }, Channel.Unreliable);
         }

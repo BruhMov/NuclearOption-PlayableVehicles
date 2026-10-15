@@ -21,8 +21,9 @@ namespace PlayableVehicles
         private static Unit _lastBulletUnit;
         private static float _lastBulletTime;
 
-        public static void OnBulletHit(Unit shooter, Unit hitUnit, Vector3 localPoint)
+        public static void OnBulletHit(Unit shooter, Unit hitUnit, Vector3 localPoint, Vector3 bulletVelocity, WeaponInfo weaponInfo)
         {
+            RemoteDrivers.OnIncomingBullet(shooter, hitUnit, localPoint, bulletVelocity, weaponInfo);
             GroundVehicle vehicle = LocalVehicle;
             if (vehicle == null || !ReferenceEquals(shooter, vehicle))
             {
@@ -68,6 +69,53 @@ namespace PlayableVehicles
             if (float.IsNaN(direction.x) || float.IsNaN(direction.z) || float.IsInfinity(direction.x) || float.IsInfinity(direction.z)) return;
             if (direction.sqrMagnitude < 0.01f) return;
             _damageDirections.Add(direction);
+        }
+
+        public static void OnIncomingHit(INetworkPlayer _, PvIncomingHit message)
+        {
+            GroundVehicle vehicle = VehicleSession.Vehicle;
+            if (!VehicleSession.IsClientDriver || (object)vehicle == null || vehicle.persistentID.Id != message.VehicleId) return;
+            Vector3 local = new Vector3(message.X, message.Y, message.Z);
+            Vector3 direction = new Vector3(message.DirX, message.DirY, message.DirZ);
+            if (!IsFinite(local) || !IsFinite(direction) || direction.sqrMagnitude < 0.01f || local.sqrMagnitude > 100f * 100f) return;
+            if (!UnitRegistry.TryGetUnit(new PersistentID?(new PersistentID { Id = message.ShooterId }), out Unit shooter) || shooter == null) return;
+
+            GameObject prefab = ArmorImpactPrefab(shooter, message.Station);
+            if (prefab == null || SceneSingleton<ParticleEffectManager>.i == null) return;
+            ParticleEffectManager.PrefabEffect effect = SceneSingleton<ParticleEffectManager>.i.GetPrefabEffect(prefab);
+            if (effect == null) return;
+            direction.Normalize();
+            effect.Play(vehicle.transform.TransformPoint(local), Quaternion.LookRotation(-direction, Vector3.up));
+        }
+
+        private static GameObject ArmorImpactPrefab(Unit shooter, byte station)
+        {
+            if (station < shooter.weaponStations.Count)
+            {
+                foreach (Weapon weapon in shooter.weaponStations[station].Weapons)
+                {
+                    GameObject prefab = ArmorImpact(weapon as Gun);
+                    if (prefab != null) return prefab;
+                }
+            }
+            foreach (Gun gun in shooter.GetComponentsInChildren<Gun>())
+            {
+                GameObject prefab = ArmorImpact(gun);
+                if (prefab != null) return prefab;
+            }
+            return null;
+        }
+
+        private static GameObject ArmorImpact(Gun gun)
+        {
+            GameObject[] prefabs = gun != null ? gun.ImpactEffectsPrefabs : null;
+            return prefabs != null && prefabs.Length > 1 ? prefabs[1] : null;
+        }
+
+        private static bool IsFinite(Vector3 v)
+        {
+            return !(float.IsNaN(v.x) || float.IsNaN(v.y) || float.IsNaN(v.z)
+                || float.IsInfinity(v.x) || float.IsInfinity(v.y) || float.IsInfinity(v.z));
         }
 
         public static void DrainDamageDirections(List<Vector3> into)

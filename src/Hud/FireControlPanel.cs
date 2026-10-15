@@ -145,7 +145,7 @@ namespace PlayableVehicles
                 UpdateRow(_lowRow, WeaponCaption(station), FireMode.Missile, target, _low);
                 _line3.text = _kind == FireMissionKind.Ballistic ? WarheadText(station)
                     : target != null ? UnitConverter.AltitudeReading(target.radarAlt) : "-";
-                _line4.text = station != null ? station.Ammo + " / " + station.FullAmmo : "-";
+                _line4.text = station != null ? AmmoSync.Of(VehicleSession.Vehicle, station).Ammo + " / " + station.FullAmmo : "-";
             }
 
             _target.text = target != null ? target.unitName : "-";

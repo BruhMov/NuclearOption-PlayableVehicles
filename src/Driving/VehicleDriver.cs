@@ -15,6 +15,7 @@ namespace PlayableVehicles
         private const float PoseFollowGain = 5f;
         private const float PoseSnapDistance = 30f;
         private const float MaxPoseExtrapolation = 0.25f;
+        private const float MaxPoseLead = 0.3f;
         private const float MaxPoseSpeed = 80f;
         private const float PoseSpeedFactor = 2f;
         private const float PoseTolerance = 20f;
@@ -45,6 +46,8 @@ namespace PlayableVehicles
         private Quaternion _poseRotation;
         private Vector3 _poseVelocity;
         private float _poseTime;
+        private float _poseLead;
+        private float _poseRadarAlt;
         private GlobalPosition _plausiblePosition;
         private float _poseBudget;
         private float _poseBudgetTime;
@@ -97,6 +100,8 @@ namespace PlayableVehicles
             Throttle = 0f;
             Steer = 0f;
             _hasPose = false;
+            _poseLead = 0f;
+            _poseRadarAlt = 0f;
             _lastRemoteInputTime = Time.time;
             _plausiblePosition = vehicle.transform.position.ToGlobalPosition();
             _poseBudget = PoseTolerance;
@@ -272,6 +277,8 @@ namespace PlayableVehicles
                     float maxSpeed = Mathf.Min(MaxPoseSpeed, _poseSpeedLimit * PoseSpeedFactor);
                     _poseVelocity = Vector3.ClampMagnitude(new Vector3(input.VelX, input.VelY, input.VelZ), maxSpeed);
                     _poseTime = Time.time;
+                    _poseLead = Mathf.Clamp(input.RttMs * 0.0005f, 0f, MaxPoseLead);
+                    _poseRadarAlt = input.RadarAltDm * 0.1f;
                     _hasPose = true;
                 }
                 else
@@ -439,7 +446,7 @@ namespace PlayableVehicles
                 return;
             }
 
-            float age = Mathf.Min(Time.time - _poseTime, MaxPoseExtrapolation);
+            float age = Mathf.Min(Time.time - _poseTime, MaxPoseExtrapolation) + _poseLead;
             Vector3 target = _posePosition.ToLocalPosition() + _poseVelocity * age;
             Vector3 error = target - _rb.position;
 
@@ -456,7 +463,7 @@ namespace PlayableVehicles
             }
             _rb.angularVelocity = Vector3.zero;
             _vehicle.speed = Vector3.Dot(_poseVelocity, _vehicle.transform.forward);
-            if (_ground.Sample(_rb, out float groundHeight, out _)) SetRadarAlt(_rb.position.y - groundHeight - _ground.RideHeight);
+            SetRadarAlt(_poseRadarAlt);
         }
 
         private bool DriveOnGround(float steer)
@@ -546,13 +553,6 @@ namespace PlayableVehicles
 
         private void ReadLocalInput()
         {
-            if (DebugInput.Active)
-            {
-                Throttle = DebugInput.Throttle;
-                Steer = DebugInput.Steer;
-                Turrets.DebugInput(DebugInput.Fire);
-                return;
-            }
             if (!InputGate.GameplayInputAllowed)
             {
                 Throttle = 0f;

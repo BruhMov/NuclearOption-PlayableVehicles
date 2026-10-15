@@ -12,12 +12,12 @@ namespace PlayableVehicles
             if (vehicle != _vehicle)
             {
                 _vehicle = vehicle;
-                _requested = vehicle != null && vehicle.HasRequestedRearm;
+                _requested = AmmoSync.RearmRequested(vehicle);
                 return;
             }
             if (vehicle == null) return;
 
-            bool requested = vehicle.HasRequestedRearm;
+            bool requested = AmmoSync.RearmRequested(vehicle);
             if (requested && !_requested)
             {
                 ModLog.Notify("Ammo low: stop near a friendly supply vehicle or ammo depot to rearm");

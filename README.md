@@ -196,12 +196,11 @@ Keys use Unity key names: `F7`, `X`, `UpArrow`, `Keypad5` and so on.
 | FriendlyIconRange | 500 | Friendly units closer than this get a full icon, further ones a dot, metres |
 | EnemyIconRange | 3000 | Enemy units closer than this get a full icon, further ones a small marker, metres |
 
-The `[Debug]` section is only for mod development; leave it as it is.
-
 ## Known issues
 
-- **Multiplayer hasn't been fully tested.** It was checked with two copies of the game on one PC, but not yet over
-  the internet with real latency. Desync and other network problems are possible.
+- **Multiplayer has had limited testing.** It has been played over the internet by two players (a host and one
+  client) for a full co-op mission. Games with more players and dedicated servers haven't been tested yet, so desync
+  and other network problems are still possible.
 - **Towing is rough** (see above), especially in multiplayer: for a client, the trailer lags behind the tractor by
   the ping.
 - A client's shots are handled by the host, so with high ping they go off with a delay.

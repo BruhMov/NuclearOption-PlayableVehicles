@@ -59,7 +59,7 @@ namespace PlayableVehicles
                 FreeAimZ = freeAim.z,
             };
 
-            NetBridge.SendToModClients(message, Channel.Unreliable, exclude);
+            int recipients = NetBridge.SendToModClients(message, Channel.Unreliable, exclude);
         }
 
         public static void OnTurretAim(INetworkPlayer _, PvTurretAim message)
@@ -98,6 +98,7 @@ namespace PlayableVehicles
 
             foreach (uint id in _toRemove)
             {
+                PointDefence.Unmark(_remote[id].Turrets);
                 ControlRegistry.RemoveRemoteAimed(_remote[id].Vehicle);
                 _remote.Remove(id);
             }
@@ -108,6 +109,7 @@ namespace PlayableVehicles
         {
             foreach (RemoteAim aim in _remote.Values)
             {
+                PointDefence.Unmark(aim.Turrets);
                 ControlRegistry.RemoveRemoteAimed(aim.Vehicle);
             }
             _remote.Clear();
@@ -123,6 +125,7 @@ namespace PlayableVehicles
             foreach (Turret turret in aim.Turrets)
             {
                 if (turret == null || !turret.gameObject.activeInHierarchy) continue;
+                if (PointDefence.Mark(turret, PointDefence.IsAutonomous(aim.Vehicle, station, turret)) && PointDefence.RunsVanilla(turret)) continue;
                 bool stationTurret = station != null && station.Turrets != null && station.Turrets.Contains(turret);
                 Vector3 target = stationTurret ? stationAim : freeAim;
                 GameAccess.TurretAimTurret(turret, target - turret.transform.position);

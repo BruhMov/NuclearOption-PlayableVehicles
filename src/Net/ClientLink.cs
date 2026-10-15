@@ -8,6 +8,8 @@ namespace PlayableVehicles
     {
         private const float ReplyTimeout = 3f;
         private const float InputInterval = 0.05f;
+        private const float RttSmoothing = 0.2f;
+        private const float MaxRttSample = 5f;
 
         private const string NoModText = "Host did not answer: the host needs the PlayableVehicles mod";
 
@@ -16,6 +18,9 @@ namespace PlayableVehicles
         private static float _nextInputTime;
         private static ushort _inputSeq;
         private static Player _stateRequestedFor;
+        private static float _rtt;
+
+        public static float Rtt => _rtt;
 
         public static void RequestEnter(GroundVehicle vehicle)
         {
@@ -85,7 +90,15 @@ namespace PlayableVehicles
             _hostProtocol = 0;
             _mismatchShown = false;
             _stateRequestedFor = null;
+            _rtt = 0f;
             if (VehicleSession.IsActive && VehicleSession.IsClientDriver) VehicleSession.EndFromHost("Disconnected from host");
+        }
+
+        public static void OnInputEcho(INetworkPlayer _, PvInputEcho message)
+        {
+            float sample = Time.realtimeSinceStartup - message.ClientTime;
+            if (!(sample >= 0f && sample <= MaxRttSample)) return;
+            _rtt = _rtt <= 0f ? sample : Mathf.Lerp(_rtt, sample, RttSmoothing);
         }
 
         public static void Tick()
@@ -112,6 +125,7 @@ namespace PlayableVehicles
             _hostProtocol = 0;
             _mismatchShown = false;
             _stateRequestedFor = null;
+            _rtt = 0f;
             if (!NetBridge.IsClientOnly) return;
             NetBridge.SendToServer(new PvHello { Version = PvProtocol.Version }, Channel.Reliable);
         }
@@ -196,6 +210,9 @@ namespace PlayableVehicles
                 MissionMode = turrets.MissionActive ? turrets.MissionMode : FireMode.None,
                 Seq = _inputSeq++,
                 FirePresses = turrets.FirePresses,
+                ClientTime = Time.realtimeSinceStartup,
+                RttMs = (ushort)Mathf.Clamp(Mathf.RoundToInt(_rtt * 1000f), 0, ushort.MaxValue),
+                RadarAltDm = (byte)Mathf.Clamp(Mathf.RoundToInt(vehicle.radarAlt * 10f), 0, 255),
             }, Channel.Unreliable);
         }
     }

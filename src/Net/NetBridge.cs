@@ -56,12 +56,16 @@ namespace PlayableVehicles
             server?.Send(message, channel);
         }
 
-        public static void SendToModClients<T>(T message, Channel channel, INetworkPlayer exclude = null)
+        public static int SendToModClients<T>(T message, Channel channel, INetworkPlayer exclude = null)
         {
+            int sent = 0;
             foreach (INetworkPlayer connection in _modClients)
             {
-                if (connection != exclude) connection.Send(message, channel);
+                if (connection == exclude) continue;
+                connection.Send(message, channel);
+                sent++;
             }
+            return sent;
         }
 
         public static T FindClientObject<T>(uint netId) where T : NetworkBehaviour
@@ -126,6 +130,9 @@ namespace PlayableVehicles
             handler.RegisterHandler<PvNotice>(FromCompatibleHost<PvNotice>(ClientLink.OnNotice), false);
             handler.RegisterHandler<PvDamageDirection>(FromCompatibleHost<PvDamageDirection>(HitFeedback.OnDamageDirection), false);
             handler.RegisterHandler<PvLogistics>(FromCompatibleHost<PvLogistics>(LogisticsLink.OnLogistics), false);
+            handler.RegisterHandler<PvInputEcho>(FromCompatibleHost<PvInputEcho>(ClientLink.OnInputEcho), false);
+            handler.RegisterHandler<PvIncomingHit>(FromCompatibleHost<PvIncomingHit>(HitFeedback.OnIncomingHit), false);
+            handler.RegisterHandler<PvAmmoState>(FromCompatibleHost<PvAmmoState>(AmmoSync.OnAmmoState), false);
             handler.RegisterHandler<PvServerRules>(OnServerRules, false);
         }
 

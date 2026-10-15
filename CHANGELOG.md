@@ -1,6 +1,20 @@
 # Changelog
 
-## 1.0.0 — unreleased
+## 1.0.2
+
+- **Multiplayer (protocol 5, host and clients must update together)**: the host now measures each driver's ping and
+  places their vehicle ahead by the delivery delay, so AI aims at and hits where the vehicle really is on the
+  driver's screen. When the host registers a bullet hit on a client's vehicle, the driver sees the impact effect at
+  that spot even if their local copy of the bullet missed.
+- **Multiplayer: weapon panel and crosshair for clients.** The host now sends the driver the real state of their
+  weapons: rounds loaded, total ammo and reloading. Before, a client saw a full magazine that never emptied, ammo
+  draining from the reserve and no reload bar.
+- **Multiplayer: clients rearm at bunkers, ammo containers and supply trucks.** The host takes the vehicle's height
+  above the ground from the client's own physics, so a stopped client vehicle counts as standing on the ground.
+- **Laser point defence** (the Spearhead MBT's secondary laser turret) shoots down incoming missiles on its own, like
+  on AI vehicles, until you select its weapon station.
+
+## 1.0.0
 
 First public release.
 

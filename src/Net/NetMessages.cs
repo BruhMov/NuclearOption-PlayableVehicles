@@ -31,7 +31,7 @@ namespace PlayableVehicles
 
     internal static class PvProtocol
     {
-        public const byte Version = 4;
+        public const byte Version = 5;
         public const byte Legacy = 1;
         public const byte FirstVersioned = 2;
     }
@@ -72,6 +72,43 @@ namespace PlayableVehicles
         public FireMode MissionMode;
         public ushort Seq;
         public byte FirePresses;
+        public float ClientTime;
+        public ushort RttMs;
+        public byte RadarAltDm;
+    }
+
+    internal struct PvStationAmmo
+    {
+        public ushort Loaded;
+        public ushort Total;
+        public ushort Ammo;
+        public bool Reloading;
+        public byte ReloadProgress;
+    }
+
+    internal struct PvAmmoState
+    {
+        public uint VehicleId;
+        public bool RearmRequested;
+        public PvStationAmmo[] Stations;
+    }
+
+    internal struct PvInputEcho
+    {
+        public float ClientTime;
+    }
+
+    internal struct PvIncomingHit
+    {
+        public uint VehicleId;
+        public uint ShooterId;
+        public byte Station;
+        public float X;
+        public float Y;
+        public float Z;
+        public float DirX;
+        public float DirY;
+        public float DirZ;
     }
 
     internal struct PvStateRequest
@@ -190,6 +227,7 @@ namespace PlayableVehicles
     internal static class NetSerializers
     {
         private static bool _registered;
+        private const int MaxAmmoStations = 16;
 
         public static void Register()
         {
@@ -235,6 +273,9 @@ namespace PlayableVehicles
                 w.WriteByte((byte)m.MissionMode);
                 w.WriteUInt16(m.Seq);
                 w.WriteByte(m.FirePresses);
+                w.WriteSingle(m.ClientTime);
+                w.WriteUInt16(m.RttMs);
+                w.WriteByte(m.RadarAltDm);
             };
             Reader<PvInput>.Read = r => new PvInput
             {
@@ -262,6 +303,72 @@ namespace PlayableVehicles
                 MissionMode = (FireMode)r.ReadByte(),
                 Seq = r.ReadUInt16(),
                 FirePresses = r.ReadByte(),
+                ClientTime = r.ReadSingle(),
+                RttMs = r.ReadUInt16(),
+                RadarAltDm = r.ReadByte(),
+            };
+
+            Writer<PvAmmoState>.Write = (w, m) =>
+            {
+                w.WriteUInt32(m.VehicleId);
+                w.WriteBoolean(m.RearmRequested);
+                int count = m.Stations != null ? System.Math.Min(m.Stations.Length, MaxAmmoStations) : 0;
+                w.WriteByte((byte)count);
+                for (int i = 0; i < count; i++)
+                {
+                    PvStationAmmo s = m.Stations[i];
+                    w.WriteUInt16(s.Loaded);
+                    w.WriteUInt16(s.Total);
+                    w.WriteUInt16(s.Ammo);
+                    w.WriteBoolean(s.Reloading);
+                    w.WriteByte(s.ReloadProgress);
+                }
+            };
+            Reader<PvAmmoState>.Read = r =>
+            {
+                var m = new PvAmmoState { VehicleId = r.ReadUInt32(), RearmRequested = r.ReadBoolean() };
+                int count = System.Math.Min((int)r.ReadByte(), MaxAmmoStations);
+                m.Stations = new PvStationAmmo[count];
+                for (int i = 0; i < count; i++)
+                {
+                    m.Stations[i] = new PvStationAmmo
+                    {
+                        Loaded = r.ReadUInt16(),
+                        Total = r.ReadUInt16(),
+                        Ammo = r.ReadUInt16(),
+                        Reloading = r.ReadBoolean(),
+                        ReloadProgress = r.ReadByte(),
+                    };
+                }
+                return m;
+            };
+
+            Writer<PvInputEcho>.Write = (w, m) => w.WriteSingle(m.ClientTime);
+            Reader<PvInputEcho>.Read = r => new PvInputEcho { ClientTime = r.ReadSingle() };
+
+            Writer<PvIncomingHit>.Write = (w, m) =>
+            {
+                w.WriteUInt32(m.VehicleId);
+                w.WriteUInt32(m.ShooterId);
+                w.WriteByte(m.Station);
+                w.WriteSingle(m.X);
+                w.WriteSingle(m.Y);
+                w.WriteSingle(m.Z);
+                w.WriteSingle(m.DirX);
+                w.WriteSingle(m.DirY);
+                w.WriteSingle(m.DirZ);
+            };
+            Reader<PvIncomingHit>.Read = r => new PvIncomingHit
+            {
+                VehicleId = r.ReadUInt32(),
+                ShooterId = r.ReadUInt32(),
+                Station = r.ReadByte(),
+                X = r.ReadSingle(),
+                Y = r.ReadSingle(),
+                Z = r.ReadSingle(),
+                DirX = r.ReadSingle(),
+                DirY = r.ReadSingle(),
+                DirZ = r.ReadSingle(),
             };
 
             Writer<PvStateRequest>.Write = (w, m) => { };
@@ -411,6 +518,9 @@ namespace PlayableVehicles
             MessagePacker.RegisterMessage<PvDamageDirection>();
             MessagePacker.RegisterMessage<PvLogisticsRequest>();
             MessagePacker.RegisterMessage<PvLogistics>();
+            MessagePacker.RegisterMessage<PvInputEcho>();
+            MessagePacker.RegisterMessage<PvIncomingHit>();
+            MessagePacker.RegisterMessage<PvAmmoState>();
         }
 
         public static string Describe(PvReply reply)

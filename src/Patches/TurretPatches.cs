@@ -12,7 +12,8 @@ namespace PlayableVehicles
         {
             try
             {
-                return !ControlRegistry.TurretsOverridden(GameAccess.TurretAttachedUnit(__instance));
+                if (!ControlRegistry.TurretsOverridden(GameAccess.TurretAttachedUnit(__instance))) return true;
+                return PointDefence.RunsVanilla(__instance);
             }
             catch (Exception e)
             {

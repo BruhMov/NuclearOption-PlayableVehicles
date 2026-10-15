@@ -143,25 +143,16 @@ namespace PlayableVehicles
             label.color = HudStyle.Normal;
         }
 
-        private static string AmmoReadout(Row row)
+        private static string AmmoReadout(Row row, in AmmoSync.View view, bool remote)
         {
-            WeaponStation station = row.Station;
-            int loaded = 0;
-            int total = 0;
-            List<Weapon> weapons = station.Weapons;
-            for (int i = 0; i < weapons.Count; i++)
+            if (row.AmmoText == null || view.Loaded != row.AmmoLoaded || view.Total != row.AmmoTotal || view.Ammo != row.AmmoCount
+                || view.Reloading != row.AmmoReloading)
             {
-                loaded += weapons[i].GetAmmoLoaded();
-                total += weapons[i].GetAmmoTotal();
-            }
-            bool reloading = station.Reloading;
-            if (row.AmmoText == null || loaded != row.AmmoLoaded || total != row.AmmoTotal || station.Ammo != row.AmmoCount || reloading != row.AmmoReloading)
-            {
-                row.AmmoLoaded = loaded;
-                row.AmmoTotal = total;
-                row.AmmoCount = station.Ammo;
-                row.AmmoReloading = reloading;
-                row.AmmoText = station.GetAmmoReadout();
+                row.AmmoLoaded = view.Loaded;
+                row.AmmoTotal = view.Total;
+                row.AmmoCount = view.Ammo;
+                row.AmmoReloading = view.Reloading;
+                row.AmmoText = remote ? AmmoSync.Readout(view) : row.Station.GetAmmoReadout();
             }
             return row.AmmoText;
         }
@@ -169,14 +160,16 @@ namespace PlayableVehicles
         public override void Refresh(HudContext context)
         {
             WeaponStation selected = context.Turrets.SelectedStation;
+            bool remote = VehicleSession.IsClientDriver;
             foreach (Row row in _rows)
             {
                 WeaponStation station = row.Station;
                 float alpha = station == selected ? 1f : InactiveAlpha;
                 if (!Mathf.Approximately(row.Group.alpha, alpha)) row.Group.alpha = alpha;
 
-                Color baseColor = station.Ammo > 0 ? HudStyle.Normal : HudStyle.Alert;
-                string ammo = AmmoReadout(row);
+                AmmoSync.View view = AmmoSync.Of(context.Vehicle, station);
+                Color baseColor = view.Ammo > 0 ? HudStyle.Normal : HudStyle.Alert;
+                string ammo = AmmoReadout(row, view, remote);
                 if (row.Panel == null)
                 {
                     bool isSelected = station == selected;
@@ -195,14 +188,14 @@ namespace PlayableVehicles
                 if (panel.Ammo.text != ammo) panel.Ammo.text = ammo;
                 panel.Name.color = baseColor;
                 panel.Ammo.color = baseColor;
-                if (panel.Icon != null && panel.Icon.enabled) panel.Icon.color = station.Reloading ? HudStyle.Normal * 0.5f + HudStyle.Alert : baseColor;
+                if (panel.Icon != null && panel.Icon.enabled) panel.Icon.color = view.Reloading ? HudStyle.Normal * 0.5f + HudStyle.Alert : baseColor;
 
                 if (panel.ReloadImage == null || panel.Reload == null || panel.Panel == null) continue;
-                bool reloading = station.Reloading;
+                bool reloading = view.Reloading;
                 if (panel.ReloadImage.enabled != reloading) panel.ReloadImage.enabled = reloading;
                 if (reloading)
                 {
-                    float width = (panel.Panel.sizeDelta.x - 10f) * station.GetReloadStatusMax();
+                    float width = (panel.Panel.sizeDelta.x - 10f) * view.ReloadProgress;
                     panel.Reload.sizeDelta = new Vector2(width, panel.Reload.sizeDelta.y);
                 }
             }

@@ -10,11 +10,11 @@ namespace PlayableVehicles
     {
         private static readonly ErrorThrottle Errors = new ErrorThrottle("Unit.RegisterHit patch");
 
-        private static void Postfix(Unit __instance, Unit __0, Vector3 __1)
+        private static void Postfix(Unit __instance, Unit __0, Vector3 __1, Vector3 __2, WeaponInfo __3)
         {
             try
             {
-                HitFeedback.OnBulletHit(__instance, __0, __1);
+                HitFeedback.OnBulletHit(__instance, __0, __1, __2, __3);
             }
             catch (Exception e)
             {

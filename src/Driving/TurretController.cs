@@ -152,6 +152,7 @@ namespace PlayableVehicles
             {
                 if (_turrets[i] != null) _turrets[i].enabled = _turretWasEnabled[i];
             }
+            PointDefence.Unmark(_turrets);
             _turrets.Clear();
             _turretWasEnabled.Clear();
             _lock.Clear();
@@ -184,6 +185,7 @@ namespace PlayableVehicles
             {
                 Turret turret = _turrets[i];
                 if (turret == null || !turret.gameObject.activeInHierarchy) continue;
+                if (PointDefence.Mark(turret, PointDefence.IsAutonomous(_vehicle, station, turret)) && PointDefence.RunsVanilla(turret)) continue;
 
                 bool stationTurret = station != null && station.Turrets != null && station.Turrets.Contains(turret);
                 if (mission && stationTurret && ArtillerySolver.IsArtillery(turret))
@@ -340,15 +342,6 @@ namespace PlayableVehicles
             if (turret == null) return null;
             Transform barrel = GameAccess.TurretElevationTransform(turret);
             return barrel != null ? barrel : turret.transform;
-        }
-
-        public void DebugSelectTarget() => _lock.Select(_vehicle, Camera.main);
-        public void DebugNextWeapon() => SwitchWeapon(1);
-
-        public void DebugInput(bool fire)
-        {
-            UpdateAimPoint();
-            SetLocalFire(fire);
         }
 
         public void ReadLocalInput()
@@ -586,7 +579,6 @@ namespace PlayableVehicles
         private const float FuseRetargetInterval = 0.2f;
         private WeaponStation _fuseStation;
         private Unit _fuseTarget;
-        public Unit FuseTargetDebug => _fuseTarget;
         private float _nextFuseSearch;
 
         internal static bool HasProximityFuse(WeaponStation station)

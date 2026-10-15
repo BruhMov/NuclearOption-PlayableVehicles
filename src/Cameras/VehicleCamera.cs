@@ -63,12 +63,6 @@ namespace PlayableVehicles
             _highShake = Mathf.Min(_highShake + highFreqShake * scale, 1f);
         }
 
-        public void DebugLook(float yaw, float pitch)
-        {
-            _yaw = yaw;
-            _pitch = Mathf.Clamp(pitch, -ModConfig.CameraMaxLookUp.Value, MaxPitch);
-        }
-
         private float MinThirdPersonDistance => Mathf.Max(MinDistance, _bodyRadius + 2f);
         public Camera CurrentCamera => _cam;
 
@@ -97,7 +91,6 @@ namespace PlayableVehicles
             _yaw = vehicle.transform.eulerAngles.y;
             _pitch = DefaultPitch;
             IsZoomed = false;
-            DebugInput.Zoom = false;
             _zoomSpeed = 0f;
             _lowShake = _highShake = 0f;
             _verticalLag = _verticalLagVelocity = 0f;
@@ -118,7 +111,6 @@ namespace PlayableVehicles
             _rb = null;
             _cam = null;
             IsZoomed = false;
-            DebugInput.Zoom = false;
             HasAimRay = false;
         }
 
@@ -311,7 +303,7 @@ namespace PlayableVehicles
                 return;
             }
 
-            IsZoomed = Input.GetMouseButton(1) || DebugInput.Zoom;
+            IsZoomed = Input.GetMouseButton(1);
 
             float sens = IsZoomed ? ZoomSensitivityMultiplier : 1f;
             _yaw += Input.GetAxis("Mouse X") * ModConfig.MouseSensitivityX.Value * sens;
@@ -328,7 +320,7 @@ namespace PlayableVehicles
 
         private void ReadViewActions()
         {
-            IsZoomed = InputGate.ActionHeld(GameActions.FreeLook) || DebugInput.Zoom;
+            IsZoomed = InputGate.ActionHeld(GameActions.FreeLook);
 
             float dt = Time.unscaledDeltaTime;
             float rate = Mathf.Min(_cam.fieldOfView / 20f, 1f) * 90f * PlayerSettings.viewSensitivity * dt;
