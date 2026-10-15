@@ -198,9 +198,8 @@ Keys use Unity key names: `F7`, `X`, `UpArrow`, `Keypad5` and so on.
 
 ## Known issues
 
-- **Multiplayer has had limited testing.** It has been played over the internet by two players (a host and one
-  client) for a full co-op mission. Games with more players and dedicated servers haven't been tested yet, so desync
-  and other network problems are still possible.
+- **Multiplayer has had limited testing.** It was tested in a PvE co-op session with a couple of clients. It hasn't
+  been tested on dedicated servers or with more players, so desync and other network problems can't be ruled out.
 - **Towing is rough** (see above), especially in multiplayer: for a client, the trailer lags behind the tractor by
   the ping.
 - A client's shots are handled by the host, so with high ping they go off with a delay.
