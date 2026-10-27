@@ -28,6 +28,20 @@
     <PluginsDir>$(GameDir)\BepInEx\plugins</PluginsDir>
   </PropertyGroup>
 
+  <!-- DLL игры вне usual search paths: без явного Reference OutputPath MSBuild не кладёт их в obj/project.assets.json,
+       и OmniSharp/Roslyn (IntelliSense в VS Code) не находит типы игры - нет автодополнения по Assembly-CSharp.
+       Условие: при сборке на машине без игры HintPath несуществующий - не портим restore/build там. -->
+  <ItemGroup>
+    <Reference Update="@(Reference)" Condition="Exists('%(HintPath)')" OutputPath="$([System.IO.Path]::GetFileName('%(HintPath)'))" />
+  </ItemGroup>
+
+  <!-- Отладка в игре: dotnet build -c Debug собирает portable pdb рядом с выкладываемым DLL;
+       dnSpy/dotPeek цепляют исходники src/ по относительным путям из pdb. В Release pdb не кладём
+       (иначе в релизном DLL остаётся путь к папке сборщика). -->
+  <PropertyGroup Condition="'$(Configuration)' == 'Debug'">
+    <DebugType>portable</DebugType>
+  </PropertyGroup>
+
   <!-- Исходники мода только в src/. tools/ - отдельные утилиты со своим csproj, docs/ - справочники,
        dist/ - релизный архив и публичная копия (dist/github со своими src/) -->
   <ItemGroup>

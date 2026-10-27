@@ -128,6 +128,12 @@ After the first launch, the file `BepInEx\config\PlayableVehicles.cfg` appears i
 Every setting has a short description inside the file; here is the full list. Edit the file while the game is closed.
 Keys use Unity key names: `F7`, `X`, `UpArrow`, `Keypad5` and so on.
 
+**[General]**
+
+| Setting | Default | What it does |
+|---|---|---|
+| DebugLogging | false | Verbose diagnostics in `BepInEx\LogOutput.log`: every air-target check and every fire-mission assignment logs the target's real type, its `radarAlt` and world height. Turn it on to tell apart "wrong unit type" from "bad altitude reading" when a SAM refuses an aircraft ("Not an air target"). Throttled, safe to leave on while testing |
+
 **[Controls]**
 
 | Setting | Default | What it does |

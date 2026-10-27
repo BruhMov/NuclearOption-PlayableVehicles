@@ -28,6 +28,8 @@ namespace PlayableVehicles
         public static ConfigEntry<float> CooldownTanks { get; private set; }
         public static ConfigEntry<float> CooldownArtillery { get; private set; }
 
+        public static ConfigEntry<bool> DebugLogging { get; private set; }
+
         public static ConfigEntry<bool> AircraftAutopilot { get; private set; }
         public static ConfigEntry<bool> BallisticComputer { get; private set; }
         public static ConfigEntry<bool> LockAutoTrack { get; private set; }
@@ -97,6 +99,10 @@ namespace PlayableVehicles
             AircraftAutopilot = config.Bind("Aircraft", "Autopilot", true,
                 "While you are in a vehicle, the game's autopilot flies your aircraft: it circles where you left it " +
                 "(a helicopter hovers) and holds its height above the terrain. false - the controls are left centred");
+
+            DebugLogging = config.Bind("General", "DebugLogging", false,
+                "Verbose diagnostics in BepInEx LogOutput.log: every air-target check logs the target's real type, " +
+                "radarAlt and world Y. Needed to debug 'Not an air target' rejects; throttled, safe to leave on while testing");
 
             BallisticComputer = config.Bind("Aiming", "BallisticComputer", true,
                 "The turret raises the barrel to allow for shell drop, so the shot lands where the crosshair points " +

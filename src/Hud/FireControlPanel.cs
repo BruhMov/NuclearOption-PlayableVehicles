@@ -243,6 +243,12 @@ namespace PlayableVehicles
             VehicleDriver driver = VehicleSession.Driver;
             if (driver == null || _shownTarget == null) return;
             ArtillerySolver.Solution solution = CurrentSolution();
+            // Ручное назначение огневой задачи из окна Fire Control: пишем цель, её фактический тип и radarAlt.
+            // Когда кнопка неактивна ("Not an air target"), по этой строке видно, какая именно проверка не прошла:
+            // type без Aircraft/Missile - цель неверно распознана, маленький radarAlt при большом worldY - высота недостоверна.
+            ModLog.Debug("engage", $"Engage attempt: weapon='{WeaponCaption(driver.Turrets.SelectedStation)}' "
+                + $"target='{_shownTarget.unitName}' type={_shownTarget.GetType().Name} "
+                + $"radarAlt={_shownTarget.radarAlt:F1} worldY={_shownTarget.transform.position.y:F1} status={solution.Status}");
             if (solution.Status != ArtillerySolver.Status.Ready) return;
 
             driver.Turrets.SetMission(_shownTarget, Mode);
