@@ -31,9 +31,31 @@
   <!-- DLL игры вне usual search paths: без явного Reference OutputPath MSBuild не кладёт их в obj/project.assets.json,
        и OmniSharp/Roslyn (IntelliSense в VS Code) не находит типы игры - нет автодополнения по Assembly-CSharp.
        Условие: при сборке на машине без игры HintPath несуществующий - не портим restore/build там. -->
-  <ItemGroup>
-    <Reference Update="@(Reference)" Condition="Exists('%(HintPath)')" OutputPath="$([System.IO.Path]::GetFileName('%(HintPath)'))" />
-  </ItemGroup>
+  <!-- HintPath пустой у netstandard-ссылок из SDK-пака - проверяем через %(Identity), иначе MSB4096 -->
+  <Target Name="SetReferenceOutputPath" BeforeTargets="ResolveReferences" Condition="'$(EnableIntelliSenseReferences)' != 'false'">
+    <ItemGroup>
+      <_GameRef Include="@(Reference)" Condition="'%(Reference.Identity)' == '%(Reference.HintPath)'" />
+      <_GameRef>
+        <OutputPath>$([System.IO.Path]::GetFileName('%(_GameRef.Identity)'))</OutputPath>
+      </_GameRef>
+      <Reference Update="@(_GameRef)" OutputPath="%(_GameRef.OutputPath)" />
+    </ItemGroup>
+  </Target>
+
+  <!-- Сборка без dotnet SDK с паком netstandard (Mono msbuild, чужой MSBuild): берём NETStandard.Library.Ref
+       с NuGet и подмешиваем его DLL как обычные ссылки. Условие проверяется внутри Target (в inner build),
+       а не на первом проходе оценки проекта - иначе ломается restore. Отключить: -p:EnableNetStandardFallback=false -->
+  <Target Name="AddNetStandardReferenceAssemblies" BeforeTargets="ResolveReferences" Condition="'$(EnableNetStandardFallback)' != 'false'">
+    <PropertyGroup>
+      <_SdkNSPack>$([MSBuild]::NormalizeDirectory('$(NetCoreRoot)', 'packs', 'NETStandard.Library.Ref'))</_SdkNSPack>
+      <_NeedNSFallback Condition="'$(TargetFrameworkIdentifier)' == '.NETStandard' And !Exists('$(_SdkNSPack)')">true</_NeedNSFallback>
+      <_NSRefDir>$([MSBuild]::NormalizeDirectory('$(NuGetPackageRoot)', 'netstandard.library.ref', '2.1.0', 'ref', 'netstandard2.1'))</_NSRefDir>
+    </PropertyGroup>
+    <ItemGroup Condition="'$(_NeedNSFallback)' == 'true' And Exists('$(_NSRefDir)netstandard.dll')">
+      <_NSRefDll Include="$(_NSRefDir)*.dll" />
+      <Reference Include="@(_NSRefDll->'%(FullPath)')" Private="false" />
+    </ItemGroup>
+  </Target>
 
   <!-- Отладка в игре: dotnet build -c Debug собирает portable pdb рядом с выкладываемым DLL;
        dnSpy/dotPeek цепляют исходники src/ по относительным путям из pdb. В Release pdb не кладём
