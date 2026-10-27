@@ -84,21 +84,24 @@ namespace PlayableVehicles
             }
 
             solution.Range = toTarget.magnitude;
-            if (!(target is Aircraft || target is Missile) || target.radarAlt < Mathf.Max(req.minAltitude, 1f))
+
+            if (!(target is Aircraft || target is Missile))
             {
                 solution.Status = ArtillerySolver.Status.NotAirborne;
                 return solution;
             }
-            if (req.maxAltitude > 0f && target.radarAlt > req.maxAltitude)
-            {
-                solution.Status = ArtillerySolver.Status.AltitudeLimit;
-                return solution;
-            }
-            solution.Status = Within(solution.Range, req);
-            if (solution.Status != ArtillerySolver.Status.Ready) return solution;
 
-            if (NeedsRadar(station) && !HasRadar(vehicle)) solution.Status = ArtillerySolver.Status.NoRadar;
-            else if (req.lineOfSight && !TerrainClear(origin + Vector3.up * 3f, target)) solution.Status = ArtillerySolver.Status.NoLineOfSight;
+            solution.Status = Within(solution.Range, req);      
+               
+            if (solution.Status != ArtillerySolver.Status.Ready) 
+                return solution;
+
+            if (NeedsRadar(station) && !HasRadar(vehicle)) 
+                solution.Status = ArtillerySolver.Status.NoRadar;
+
+            else if (req.lineOfSight && !TerrainClear(origin + Vector3.up * 3f, target)) 
+                solution.Status = ArtillerySolver.Status.NoLineOfSight;
+
             return solution;
         }
 

@@ -23,7 +23,7 @@
   <Import Project="GameDir.props" Condition="'$(GameDir)' == '' And Exists('GameDir.props')" />
   <PropertyGroup>
     <GameDir Condition="'$(GameDir)' == '' And '$(NUCLEAR_OPTION_DIR)' != ''">$(NUCLEAR_OPTION_DIR)</GameDir>
-    <GameDir Condition="'$(GameDir)' == ''">C:\Program Files (x86)\Steam\steamapps\common\Nuclear Option</GameDir>
+    <GameDir Condition="'$(GameDir)' == ''">C:\Games\Steam\steamapps\common\Nuclear Option</GameDir>
     <ManagedDir>$(GameDir)\NuclearOption_Data\Managed</ManagedDir>
     <PluginsDir>$(GameDir)\BepInEx\plugins</PluginsDir>
   </PropertyGroup>
