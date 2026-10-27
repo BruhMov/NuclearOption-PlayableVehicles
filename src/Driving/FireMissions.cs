@@ -84,13 +84,23 @@ namespace PlayableVehicles
             }
 
             solution.Range = toTarget.magnitude;
-            if (!(target is Aircraft || target is Missile) || target.radarAlt < Mathf.Max(req.minAltitude, 1f))
+            // Раздельная проверка: раньше тип цели и её высота были в одном условии, и отказ по высоте
+            // ("radarAlt < 1") выглядел как "цель не самолёт". Отладочный лог пишет фактический тип цели
+            // (через GetType(), а не is Aircraft), radarAlt и мировую Y - чтобы отличить отказ по типу от отказа по высоте.
+            bool isAirType = target is Aircraft || target is Missile;
+            float minAltitude = Mathf.Max(req.minAltitude, 1f);
+            if (!isAirType || target.radarAlt < minAltitude)
             {
+                ModLog.Debug("aircheck", $"Air target rejected: name='{target.unitName}' type={target.GetType().Name} "
+                    + $"isAirType={isAirType} radarAlt={target.radarAlt:F1} worldY={target.transform.position.y:F1} "
+                    + $"reqMinAltitude={req.minAltitude:F1} floor={minAltitude:F1} range={solution.Range:F0} kind={kind}");
                 solution.Status = ArtillerySolver.Status.NotAirborne;
                 return solution;
             }
             if (req.maxAltitude > 0f && target.radarAlt > req.maxAltitude)
             {
+                ModLog.Debug("aircheck-high", $"Air target too high: name='{target.unitName}' type={target.GetType().Name} "
+                    + $"radarAlt={target.radarAlt:F1} maxAltitude={req.maxAltitude:F1}");
                 solution.Status = ArtillerySolver.Status.AltitudeLimit;
                 return solution;
             }
