@@ -87,6 +87,15 @@ namespace PlayableVehicles
         public bool HasArtillery => ArtilleryTurret(SelectedStation) != null;
         public FireMissionKind MissionKind => FireMissions.KindOf(SelectedStation);
 
+        // Public entry point for the fire control panel's Engage button: program the same
+        // target lock the mouse-select path creates, so missile seekers receive their target
+        // via Weapon.SetTarget when the station fires. TargetLock.Set re-validates the target
+        // (known foreign unit) before accepting it.
+        public void SetLock(Unit target)
+        {
+            _lock.Set(_vehicle, target);
+        }
+
         public void SetMission(Unit target, FireMode mode)
         {
             MissionTarget = target;
