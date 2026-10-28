@@ -5,7 +5,7 @@ namespace PlayableVehicles
 {
     internal sealed class TargetLock
     {
-        private const float MaxLockDistance = 10000f;
+        private const float MinLockDistance = 10000f;
 
         private readonly List<Unit> _candidates = new List<Unit>();
 
@@ -76,8 +76,10 @@ namespace PlayableVehicles
             FactionHQ hq = vehicle.NetworkHQ;
             if (hq == null) return null;
 
+            float maxDistance = LockDistance(vehicle);
+
             Ray ray = VehicleCamera.ViewRay(camera);
-            if (AimRaycast.Cast(ray.origin, ray.direction, MaxLockDistance, vehicle.transform, out RaycastHit hit))
+            if (AimRaycast.Cast(ray.origin, ray.direction, maxDistance, vehicle.transform, out RaycastHit hit))
             {
                 Unit hitUnit = hit.collider.GetComponentInParent<Unit>();
                 if (IsLockable(hitUnit, vehicle, hq)) return hitUnit;
@@ -92,7 +94,7 @@ namespace PlayableVehicles
             {
                 if (!hq.TryGetKnownPosition(unit, out GlobalPosition known)) continue;
                 Vector3 screen = camera.WorldToScreenPoint(known.ToLocalPosition());
-                if (screen.z <= 0f || screen.z > MaxLockDistance) continue;
+                if (screen.z <= 0f || screen.z > maxDistance) continue;
 
                 float pixels = Vector2.Distance(center, new Vector2(screen.x, screen.y));
                 if (pixels < bestPixels)
@@ -102,6 +104,18 @@ namespace PlayableVehicles
                 }
             }
             return best;
+        }
+
+        private static float LockDistance(GroundVehicle vehicle)
+        {
+            float distance = MinLockDistance;
+            if (vehicle.weaponStations == null) return distance;
+            foreach (WeaponStation station in vehicle.weaponStations)
+            {
+                WeaponInfo info = station != null ? station.WeaponInfo : null;
+                if (info != null) distance = Mathf.Max(distance, info.targetRequirements.maxRange);
+            }
+            return distance;
         }
 
         private void CollectCandidates(GroundVehicle vehicle, FactionHQ hq)

@@ -542,7 +542,10 @@ namespace PlayableVehicles
             }
 
             if (Mode == DriveMode.Local) Turrets.TryFire();
-            else ClientLink.SendInput(_vehicle, this);
+            else
+            {
+                ClientLink.SendInput(_vehicle, this);
+            }
         }
 
         private void ExitSlung()

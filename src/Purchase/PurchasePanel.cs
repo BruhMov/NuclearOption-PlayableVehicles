@@ -24,19 +24,19 @@ namespace PlayableVehicles
         private static TMP_Text _remaining;
         private static readonly List<Entry> _entries = new List<Entry>();
         private static Entry _selected;
-        private static VehicleDepot _depot;
+        private static PurchasePoint _point;
         private static bool _fromSpawnScreen;
 
         public static bool IsOpen => _window != null && _window.IsOpen;
 
-        public static void Open(VehicleDepot depot)
+        public static void Open(PurchasePoint point)
         {
             if ((_window == null || !_window.Alive) && !Build())
             {
                 ModLog.Notify("Vehicle purchase is not available: game menu not found");
                 return;
             }
-            _depot = depot;
+            _point = point;
             _selected = null;
             _fromSpawnScreen = SpawnScreen.Active;
             foreach (Entry entry in _entries) entry.Row.State = -1;
@@ -49,7 +49,7 @@ namespace PlayableVehicles
         {
             bool wasOpen = IsOpen;
             _window?.Hide();
-            _depot = null;
+            _point = null;
             _selected = null;
             if (wasOpen && _fromSpawnScreen && !VehicleSession.IsActive) { DynamicMap single = SceneSingleton<DynamicMap>.i; if (single != null) single.Maximize(); }
             _fromSpawnScreen = false;
@@ -63,7 +63,7 @@ namespace PlayableVehicles
             _remaining = null;
             _entries.Clear();
             _selected = null;
-            _depot = null;
+            _point = null;
             _fromSpawnScreen = false;
         }
 
@@ -71,7 +71,7 @@ namespace PlayableVehicles
         {
             if (!IsOpen) return;
 
-            if (!GameManager.GetLocalPlayer(out Player player) || !VehicleShop.IsOwnDepot(_depot, player.HQ))
+            if (!GameManager.GetLocalPlayer(out Player player) || !VehicleShop.IsOwn(_point, player.HQ))
             {
                 Close();
                 return;
@@ -122,8 +122,8 @@ namespace PlayableVehicles
 
         private static void Confirm()
         {
-            if (_selected == null || _depot == null) return;
-            PurchaseClient.Request(_depot, _selected.Definition);
+            if (_selected == null || _point == null) return;
+            PurchaseClient.Request(_point, _selected.Definition);
             Close();
         }
 

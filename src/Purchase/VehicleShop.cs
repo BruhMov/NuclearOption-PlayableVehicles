@@ -27,6 +27,12 @@ namespace PlayableVehicles
             Escalation,
             Rank,
             Warheads,
+            NoSpace,
+            Sold,
+            NotYours,
+            TooFar,
+            Moving,
+            Occupied,
         }
 
         public sealed class Arsenal
@@ -103,12 +109,17 @@ namespace PlayableVehicles
             return depot != null && !depot.disabled && hq != null && depot.NetworkHQ == hq;
         }
 
-        public static Result Check(Player player, VehicleDepot depot, VehicleDefinition definition)
+        public static bool IsOwn(PurchasePoint point, FactionHQ hq)
+        {
+            return point != null && point.IsOwn(hq);
+        }
+
+        public static Result Check(Player player, PurchasePoint point, VehicleDefinition definition)
         {
             if (!Enabled || definition == null) return Result.Unavailable;
             if (player == null || player.HQ == null) return Result.NoFaction;
             if (player.HQ.preventDonation) return Result.DonationsDisabled;
-            if (!IsOwnDepot(depot, player.HQ)) return Result.DepotUnavailable;
+            if (!IsOwn(point, player.HQ)) return Result.DepotUnavailable;
             Result restriction = Restriction(player, definition);
             if (restriction != Result.Purchased) return restriction;
             if (player.Allocation < Price(definition)) return Result.InsufficientFunds;
@@ -200,6 +211,28 @@ namespace PlayableVehicles
             }
         }
 
+        public static float Refund(GroundVehicle vehicle)
+        {
+            VehicleDefinition definition = vehicle != null ? vehicle.definition as VehicleDefinition : null;
+            if (definition == null) return 0f;
+            float fullAmmo = vehicle.weaponStations != null && vehicle.weaponStations.Count > 0 ? vehicle.GetAmmoValue().Total : 0f;
+            float ammoPart = fullAmmo > 0f ? fullAmmo / (Mathf.Max(0f, definition.value) + fullAmmo) : 0f;
+            return Price(definition) * ((1f - ammoPart) * HullHealth(vehicle) + ammoPart * AmmoShare(vehicle));
+        }
+
+        public static float HullHealth(GroundVehicle vehicle)
+        {
+            UnitPart hull = vehicle != null ? vehicle.GetComponent<UnitPart>() : null;
+            return hull != null ? Mathf.Clamp01(hull.hitPoints / 100f) : 1f;
+        }
+
+        public static float AmmoShare(GroundVehicle vehicle)
+        {
+            if (vehicle == null || vehicle.weaponStations == null || vehicle.weaponStations.Count == 0) return 1f;
+            AmmoValue ammo = vehicle.GetAmmoValue();
+            return ammo.Total > 0f ? Mathf.Clamp01(ammo.Current / ammo.Total) : 1f;
+        }
+
         public static string Describe(Result result, VehicleDefinition definition)
         {
             switch (result)
@@ -209,6 +242,12 @@ namespace PlayableVehicles
                 case Result.DonationsDisabled: return "Purchasing vehicles is disabled in this mission";
                 case Result.DepotUnavailable: return "This depot is not available";
                 case Result.DepotBusy: return "Depot is busy, try again in a few seconds";
+                case Result.NoSpace: return "No free space near the airbase tower";
+                case Result.Sold: return (definition != null ? definition.unitName : "Vehicle") + " sold";
+                case Result.NotYours: return "You can only sell vehicles you bought";
+                case Result.TooFar: return "The vehicle is too far from this base";
+                case Result.Moving: return "Stop the vehicle to sell it";
+                case Result.Occupied: return "Someone is in the vehicle";
                 case Result.Cooldown: return "Purchase is not available yet";
                 case Result.InsufficientFunds: return "Insufficient funds";
                 case Result.Escalation:

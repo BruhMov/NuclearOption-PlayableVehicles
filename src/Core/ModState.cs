@@ -29,6 +29,7 @@ namespace PlayableVehicles
             Step("VehicleSelectionMenu", VehicleSelectionMenu.Reset);
             Step("PurchaseClient", PurchaseClient.Reset);
             Step("PurchaseServer", PurchaseServer.Reset);
+            Step("PurchasePoint", PurchasePoint.Reset);
         }
 
         private static void Step(string name, Action reset)

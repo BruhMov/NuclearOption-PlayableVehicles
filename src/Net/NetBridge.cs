@@ -114,6 +114,7 @@ namespace PlayableVehicles
             handler.RegisterHandler<PvLogisticsRequest>(FromModClient<PvLogisticsRequest>(LogisticsLink.OnRequest), false);
             handler.RegisterHandler<PvHello>(OnHello, false);
             handler.RegisterHandler<PvPurchaseRequest>(FromModClient<PvPurchaseRequest>(PurchaseServer.OnRequest), false);
+            handler.RegisterHandler<PvSellRequest>(FromModClient<PvSellRequest>(PurchaseServer.OnSellRequest), false);
             handler.RegisterHandler<PvStateRequest>(FromModClient<PvStateRequest>(OnStateRequest), false);
             ModLog.Info("Multiplayer: server handlers registered (protocol " + PvProtocol.Version + ")");
         }
@@ -127,6 +128,7 @@ namespace PlayableVehicles
             handler.RegisterHandler<PvHit>(FromCompatibleHost<PvHit>(HitFeedback.OnRemoteHit), false);
             handler.RegisterHandler<PvDriver>(FromCompatibleHost<PvDriver>(KillCredit.OnDriverMessage), false);
             handler.RegisterHandler<PvPurchaseReply>(FromCompatibleHost<PvPurchaseReply>(PurchaseClient.OnReply), false);
+            handler.RegisterHandler<PvSellReply>(FromCompatibleHost<PvSellReply>(PurchaseClient.OnSellReply), false);
             handler.RegisterHandler<PvNotice>(FromCompatibleHost<PvNotice>(ClientLink.OnNotice), false);
             handler.RegisterHandler<PvDamageDirection>(FromCompatibleHost<PvDamageDirection>(HitFeedback.OnDamageDirection), false);
             handler.RegisterHandler<PvLogistics>(FromCompatibleHost<PvLogistics>(LogisticsLink.OnLogistics), false);

@@ -22,6 +22,7 @@ namespace PlayableVehicles
             new Dictionary<(ulong, VehicleShop.CooldownGroup), float>();
         private static readonly Dictionary<VehicleDepot, GateLock> _gates = new Dictionary<VehicleDepot, GateLock>();
         private static readonly Dictionary<GroundVehicle, Player> _buyers = new Dictionary<GroundVehicle, Player>();
+        private static readonly Dictionary<GroundVehicle, ulong> _buyerKeys = new Dictionary<GroundVehicle, ulong>();
         private static readonly List<GroundVehicle> _deadBuyers = new List<GroundVehicle>();
 
         public static bool TryGetBuyer(GroundVehicle vehicle, out Player buyer)
@@ -32,10 +33,10 @@ namespace PlayableVehicles
         public static void OnRequest(INetworkPlayer connection, PvPurchaseRequest message)
         {
             Player player = connection.Identity != null ? connection.Identity.GetComponent<Player>() : null;
-            VehicleDepot depot = UnitRegistry.TryGetUnit(new PersistentID?(new PersistentID { Id = message.DepotId }), out Unit unit) ? unit as VehicleDepot : null;
+            PurchasePoint point = PurchasePoint.Resolve(message.PointKind, message.PointId);
             VehicleShop.TryGet(message.VehicleIndex, out VehicleDefinition definition);
 
-            VehicleShop.Result result = TryPurchase(player, depot, definition, message.Deploy, out GroundVehicle vehicle, out float wait);
+            VehicleShop.Result result = TryPurchase(player, point, definition, message.Deploy, out GroundVehicle vehicle, out float wait);
             connection.Send(new PvPurchaseReply
             {
                 Result = result,
@@ -45,14 +46,14 @@ namespace PlayableVehicles
             }, Channel.Reliable);
         }
 
-        public static VehicleShop.Result TryPurchase(Player player, VehicleDepot depot, VehicleDefinition definition, bool deploy,
+        public static VehicleShop.Result TryPurchase(Player player, PurchasePoint point, VehicleDefinition definition, bool deploy,
             out GroundVehicle vehicle, out float wait)
         {
             vehicle = null;
             wait = 0f;
             if (!NetBridge.IsServer) return VehicleShop.Result.Unavailable;
 
-            VehicleShop.Result result = VehicleShop.Check(player, depot, definition);
+            VehicleShop.Result result = VehicleShop.Check(player, point, definition);
             if (result != VehicleShop.Result.Purchased) return result;
 
             float now = Time.time;
@@ -62,24 +63,73 @@ namespace PlayableVehicles
                 wait = next - now;
                 return VehicleShop.Result.Cooldown;
             }
-            if (IsGateBusy(depot, now)) return VehicleShop.Result.DepotBusy;
 
             float price = VehicleShop.Price(definition);
-            vehicle = Spawn(depot, definition, player, !deploy || VehicleDriver.IsStaticDefinition(definition));
-            if (vehicle == null) return VehicleShop.Result.Unavailable;
+            if (point.Depot != null)
+            {
+                VehicleDepot depot = point.Depot;
+                if (IsGateBusy(depot, now)) return VehicleShop.Result.DepotBusy;
+                vehicle = Spawn(depot, definition, player, !deploy || VehicleDriver.IsStaticDefinition(definition));
+                if (vehicle == null) return VehicleShop.Result.Unavailable;
+                _gates[depot] = new GateLock { Vehicle = vehicle, Time = now };
+            }
+            else
+            {
+                if (!AirbaseSpots.TryFind(point.Airbase, point.Anchor, definition, out Vector3 position, out Quaternion rotation)) return VehicleShop.Result.NoSpace;
+                vehicle = SpawnAt(position, rotation, point.Airbase.CurrentHQ, definition, player);
+                if (vehicle == null) return VehicleShop.Result.Unavailable;
+            }
 
             player.AddAllocation(-price);
             VehicleShop.ConsumeWarheads(player.HQ, definition);
             float cooldown = VehicleShop.Cooldown(definition);
             _nextPurchaseTime[cooldownKey] = now + cooldown;
             wait = cooldown;
-            _gates[depot] = new GateLock { Vehicle = vehicle, Time = now };
             PruneBuyers();
             _buyers[vehicle] = player;
+            _buyerKeys[vehicle] = PlayerKey(player);
 
             GameAccess.PlayerConvoyDonationMessage(player, definition.unitName);
-            ModLog.Info("Vehicle purchase: " + player + " bought " + definition.unitName + " for " + UnitConverter.ValueReading(price) + " at " + depot.UniqueName);
+            ModLog.Info("Vehicle purchase: " + player + " bought " + definition.unitName + " for " + UnitConverter.ValueReading(price) + " at " + point);
             return VehicleShop.Result.Purchased;
+        }
+
+        public static void OnSellRequest(INetworkPlayer connection, PvSellRequest message)
+        {
+            Player player = connection.Identity != null ? connection.Identity.GetComponent<Player>() : null;
+            PurchasePoint point = PurchasePoint.Resolve(message.PointKind, message.PointId);
+            GroundVehicle vehicle = UnitRegistry.TryGetUnit(new PersistentID?(new PersistentID { Id = message.VehicleId }), out Unit unit) ? unit as GroundVehicle : null;
+            VehicleShop.Result result = TrySell(player, point, vehicle, out float refund);
+            connection.Send(new PvSellReply { Result = result, VehicleId = message.VehicleId, Refund = refund }, Channel.Reliable);
+        }
+
+        public static VehicleShop.Result TrySell(Player player, PurchasePoint point, GroundVehicle vehicle, out float refund)
+        {
+            refund = 0f;
+            if (!NetBridge.IsServer || !VehicleShop.Enabled) return VehicleShop.Result.Unavailable;
+            if (player == null || player.HQ == null) return VehicleShop.Result.NoFaction;
+            if (!VehicleShop.IsOwn(point, player.HQ)) return VehicleShop.Result.DepotUnavailable;
+            if (vehicle == null || vehicle.disabled || vehicle.definition == null) return VehicleShop.Result.Unavailable;
+            if (!IsBuyer(vehicle, player) || vehicle.NetworkHQ != player.HQ) return VehicleShop.Result.NotYours;
+            if (ControlRegistry.IsControlled(vehicle) || vehicle.IsSlung()) return VehicleShop.Result.Occupied;
+            if (!point.InSellRange(vehicle.transform.position)) return VehicleShop.Result.TooFar;
+            if (vehicle.rb != null && !vehicle.rb.isKinematic && vehicle.rb.velocity.sqrMagnitude > 1f) return VehicleShop.Result.Moving;
+
+            refund = VehicleShop.Refund(vehicle);
+            player.AddAllocation(refund);
+            _buyers.Remove(vehicle);
+            _buyerKeys.Remove(vehicle);
+            vehicle.NetworkunitState = Unit.UnitState.Returned;
+            vehicle.Networkdisabled = true;
+            UnityEngine.Object.Destroy(vehicle.gameObject, 3f);
+            ModLog.Info("Vehicle sale: " + player + " sold " + vehicle.definition.unitName + " for " + UnitConverter.ValueReading(refund) + " at " + point);
+            return VehicleShop.Result.Sold;
+        }
+
+        private static bool IsBuyer(GroundVehicle vehicle, Player player)
+        {
+            if (_buyers.TryGetValue(vehicle, out Player buyer) && buyer == player) return true;
+            return _buyerKeys.TryGetValue(vehicle, out ulong key) && key == PlayerKey(player);
         }
 
         private static ulong PlayerKey(Player player)
@@ -122,6 +172,14 @@ namespace PlayableVehicles
             return vehicle;
         }
 
+        private static GroundVehicle SpawnAt(Vector3 position, Quaternion rotation, FactionHQ hq, VehicleDefinition definition, Player owner)
+        {
+            Spawner spawner = NetworkSceneSingleton<Spawner>.i;
+            if (spawner == null || hq == null) return null;
+            return spawner.SpawnVehicle(definition.unitPrefab, position.ToGlobalPosition() + Vector3.up * definition.spawnOffset.y,
+                rotation, Vector3.zero, hq, null, 1f, true, owner);
+        }
+
         private static void PruneBuyers()
         {
             _deadBuyers.Clear();
@@ -129,7 +187,11 @@ namespace PlayableVehicles
             {
                 if (vehicle == null || vehicle.disabled) _deadBuyers.Add(vehicle);
             }
-            foreach (GroundVehicle vehicle in _deadBuyers) _buyers.Remove(vehicle);
+            foreach (GroundVehicle vehicle in _deadBuyers)
+            {
+                _buyers.Remove(vehicle);
+                _buyerKeys.Remove(vehicle);
+            }
         }
 
         public static void Reset()
@@ -137,6 +199,7 @@ namespace PlayableVehicles
             _nextPurchaseTime.Clear();
             _gates.Clear();
             _buyers.Clear();
+            _buyerKeys.Clear();
         }
     }
 }

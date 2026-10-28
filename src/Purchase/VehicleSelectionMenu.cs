@@ -27,6 +27,7 @@ namespace PlayableVehicles
             public Text PriceText;
             public RawImage Thumbnail;
             public ShowHoverText Hover;
+            public GroundVehicle Vehicle;
         }
 
         private static readonly Vector2 CardSize = new Vector2(124f, 92f);
@@ -58,11 +59,21 @@ namespace PlayableVehicles
         private static TMP_Text _deployText;
         private static GameObject _confirm;
         private static TMP_Text _confirmTitle, _confirmValues;
+        private const float SellButtonGap = 6f;
+        private static Button _sell;
+        private static TMP_Text _sellText;
+        private static GroundVehicle _sellTarget;
+        private static bool _sellMode;
+        private static readonly List<Entry> _sellEntries = new List<Entry>();
+        private static Entry _buySelected;
+        private static GameObject _buttonPrefab;
+        private static GameObject _tabsRow;
+        private static TMP_Text _priceLabel, _remainingLabel;
         private static Light _light;
         private static RectTransform _grid;
         private static readonly List<RectTransform> _layoutChain = new List<RectTransform>();
 
-        private static VehicleDepot _depot;
+        private static PurchasePoint _point;
         private static Entry _selected;
         private static int _tab = -1;
         private static GameObject _preview;
@@ -73,20 +84,24 @@ namespace PlayableVehicles
 
         public static bool Available => VehicleShop.Enabled && GameAccess.SelectionCameraAvailable;
 
-        public static void Open(VehicleDepot depot)
+        public static void Open(PurchasePoint point)
         {
-            if (!GameManager.GetLocalPlayer(out Player player) || !VehicleShop.IsOwnDepot(depot, player.HQ)) return;
+            if (!GameManager.GetLocalPlayer(out Player player) || !VehicleShop.IsOwn(point, player.HQ)) return;
             if (_root == null && !Build())
             {
-                PurchasePanel.Open(depot);
+                PurchasePanel.Open(point);
                 return;
             }
 
-            _depot = depot;
+            _point = point;
+            _sellMode = false;
+            ClearSellEntries();
+            ApplyModeLabels();
+            if (_tabsRow != null) _tabsRow.SetActive(true);
             if (GameManager.GetLocalAircraft(out Aircraft aircraft) && aircraft != null && !aircraft.disabled) AircraftAutopilot.Engage(aircraft);
             _root.SetActive(true);
             _root.transform.SetAsLastSibling();
-            _confirm.SetActive(false);
+            HideConfirm();
             CursorManager.SetFlag(CursorFlags.SelectionMenu, true);
             GameplayUI.AllowPauseKeybind = false;
             DynamicMap.AllowedToOpen = false;
@@ -109,21 +124,27 @@ namespace PlayableVehicles
         {
             if (!IsOpen) return;
             _root.SetActive(false);
-            _confirm.SetActive(false);
+            HideConfirm();
             DestroyPreview();
+            if (_sellMode)
+            {
+                _sellMode = false;
+                ClearSellEntries();
+                if (_buySelected != null) _selected = _buySelected;
+            }
             _restorePauseKeyFrame = Time.frameCount + 1;
             DynamicMap.AllowedToOpen = true;
 
             CameraStateManager cam = SceneSingleton<CameraStateManager>.i;
             if (cam != null)
             {
-                Transform spawn = _depot != null ? GameAccess.VehicleDepotSpawnTransform(_depot) : null;
+                Transform spawn = _point == null ? null : _point.Depot != null ? GameAccess.VehicleDepotSpawnTransform(_point.Depot) : _point.Anchor;
                 if (spawn != null) cam.transform.position = spawn.position + Vector3.up * 2f;
                 cam.SwitchState(cam.freeState);
             }
             if (!VanillaWindow.AnyOpen && Object.FindObjectOfType<AircraftSelectionMenu>() == null) CursorManager.SetFlag(CursorFlags.SelectionMenu, false);
             if (returnToMap) ReturnToPreviousView();
-            _depot = null;
+            _point = null;
         }
 
         public static void ReturnToPreviousView()
@@ -150,12 +171,20 @@ namespace PlayableVehicles
                 DynamicMap.AllowedToOpen = true;
             }
             _root = null;
-            _depot = null;
+            _point = null;
             _selected = null;
             _entries.Clear();
             _layoutChain.Clear();
             _preview = null;
             _followProxy = null;
+            _sell = null;
+            _sellText = null;
+            _sellTarget = null;
+            _sellMode = false;
+            _sellEntries.Clear();
+            _buySelected = null;
+            _buttonPrefab = null;
+            _tabsRow = null;
             _nextRefresh = 0f;
         }
 
@@ -169,15 +198,15 @@ namespace PlayableVehicles
                 GameplayUI.AllowPauseKeybind = true;
             }
             if (!IsOpen) return;
-            if (!GameManager.GetLocalPlayer(out Player player) || !VehicleShop.IsOwnDepot(_depot, player.HQ))
+            if (!GameManager.GetLocalPlayer(out Player player) || !VehicleShop.IsOwn(_point, player.HQ))
             {
                 Close();
                 return;
             }
             if (GameManager.playerInput != null && GameManager.playerInput.GetButton("Pause") || Input.GetKeyDown(KeyCode.Escape))
             {
-                if (_confirm.activeSelf) _confirm.SetActive(false);
-                else Close();
+                if (_confirm.activeSelf) HideConfirm();
+                else Back();
                 return;
             }
             if (Time.unscaledTime >= _nextRefresh) Refresh();
@@ -198,7 +227,7 @@ namespace PlayableVehicles
             _playerName.text = player.GetDisplayName(PlayerNameContext.Other);
             _rank.text = string.Format("Rank {0}", player.PlayerRank);
             _funds.text = UnitConverter.ValueReading(player.Allocation);
-            _depotName.text = DepotName(_depot);
+            _depotName.text = DepotName(_point);
 
             _factionLabel.text = hq.faction.factionExtendedName;
             _factionScore.text = hq.factionScore.ToString("F1");
@@ -206,9 +235,10 @@ namespace PlayableVehicles
             _warheads.text = hq.GetWarheadStockpile().ToString();
             if (_factionLogo != null) _factionLogo.sprite = hq.faction.factionColorLogo;
 
-            foreach (Entry entry in _entries)
+            if (_sellMode) SyncSellEntries(player);
+            foreach (Entry entry in _sellMode ? _sellEntries : _entries)
             {
-                bool available = Availability(player, entry, out _) == null;
+                bool available = _sellMode ? entry.Vehicle != null && !entry.Vehicle.disabled : Availability(player, entry, out _) == null;
                 Color color = available ? Color.white : Color.grey;
                 bool active = entry == _selected;
                 entry.Icon.color = color;
@@ -237,6 +267,188 @@ namespace PlayableVehicles
             }
 
             UpdateDetails(player);
+            UpdateSell(player);
+            FitStats();
+        }
+
+        private static List<GroundVehicle> SellCandidates(Player player)
+        {
+            var list = new List<GroundVehicle>();
+            if (_point == null || _point.Anchor == null || player == null) return list;
+            Vector3 anchor = _point.Anchor.position;
+            foreach (Unit unit in UnitRegistry.allUnits)
+            {
+                if (!(unit is GroundVehicle vehicle) || vehicle.disabled || vehicle.Networkowner != player || vehicle.NetworkHQ != player.HQ) continue;
+                if (VehicleSession.IsActive && vehicle == VehicleSession.Vehicle) continue;
+                if (_point.InSellRange(vehicle.transform.position)) list.Add(vehicle);
+            }
+            list.Sort((a, b) => (a.transform.position - anchor).sqrMagnitude.CompareTo((b.transform.position - anchor).sqrMagnitude));
+            return list;
+        }
+
+        private static void UpdateSell(Player player)
+        {
+            if (_sell == null) return;
+            if (_sellMode)
+            {
+                _sell.interactable = true;
+                if (_sellText != null) _sellText.text = "BUY VEHICLE";
+                return;
+            }
+            int count = SellCandidates(player).Count;
+            _sell.interactable = count > 0;
+            if (_sellText != null) _sellText.text = count > 1 ? "SELL VEHICLE (" + count + ")" : "SELL VEHICLE";
+        }
+
+        private static void Back()
+        {
+            if (_sellMode) SetSellMode(false);
+            else Close();
+        }
+
+        private static void SetSellMode(bool sell)
+        {
+            if (_sellMode == sell) return;
+            HideConfirm();
+            _sellMode = sell;
+            if (_tabsRow != null) _tabsRow.SetActive(!sell);
+            ApplyModeLabels();
+            if (sell)
+            {
+                _buySelected = _selected;
+                foreach (Entry entry in _entries) entry.Root.SetActive(false);
+                _selected = null;
+                if (GameManager.GetLocalPlayer(out Player player)) SyncSellEntries(player);
+                Show(_sellEntries.Count > 0 ? _sellEntries[0] : null, true);
+            }
+            else
+            {
+                ClearSellEntries();
+                _selected = null;
+                SelectTab(_tab);
+                Show(_buySelected != null && _buySelected.Root.activeSelf ? _buySelected : FirstVisible(), true);
+            }
+            RebuildLayout();
+            Refresh();
+        }
+
+        private static void ApplyModeLabels()
+        {
+            if (_priceLabel != null) _priceLabel.text = _sellMode ? "Refund :\n\n" : "Price :\n\n";
+            if (_remainingLabel != null) _remainingLabel.text = _sellMode ? "Funds after :\n\n" : "Remaining :\n\n";
+            if (_infoLabel1 != null) _infoLabel1.text = _sellMode ? "Hull :\n\n" : "Range :\n\n";
+            if (_infoLabel2 != null) _infoLabel2.text = _sellMode ? "Ammo :\n\n" : "Cooldown :\n\n";
+        }
+
+        private static void SyncSellEntries(Player player)
+        {
+            List<GroundVehicle> vehicles = SellCandidates(player);
+            bool same = vehicles.Count == _sellEntries.Count;
+            for (int i = 0; same && i < vehicles.Count; i++) same = _sellEntries[i].Vehicle == vehicles[i];
+            if (same)
+            {
+                foreach (Entry entry in _sellEntries) SetSellPrice(entry);
+                return;
+            }
+
+            GroundVehicle selected = _selected != null ? _selected.Vehicle : null;
+            ClearSellEntries();
+            Entry keep = null;
+            foreach (GroundVehicle vehicle in vehicles)
+            {
+                if (!(vehicle.definition is VehicleDefinition definition) || _buttonPrefab == null) continue;
+                Entry entry = CreateButton(_buttonPrefab, _grid, definition);
+                if (entry == null) continue;
+                entry.Vehicle = vehicle;
+                entry.Root.name = "SellButton_" + definition.unitName;
+                SetSellPrice(entry);
+                _sellEntries.Add(entry);
+                if (vehicle == selected) keep = entry;
+            }
+            RebuildLayout();
+            if (keep != null) _selected = keep;
+            else Show(_sellEntries.Count > 0 ? _sellEntries[0] : null, true);
+        }
+
+        private static void SetSellPrice(Entry entry)
+        {
+            entry.Price = VehicleShop.Refund(entry.Vehicle);
+            if (entry.PriceText != null) entry.PriceText.text = "+" + UnitConverter.ValueReading(entry.Price);
+            if (entry.Hover != null) entry.Hover.SetText(entry.Definition.unitName + "\nRefund " + UnitConverter.ValueReading(entry.Price));
+        }
+
+        private static void ClearSellEntries()
+        {
+            foreach (Entry entry in _sellEntries)
+            {
+                if (entry.Root != null) Object.Destroy(entry.Root);
+            }
+            _sellEntries.Clear();
+            if (_selected != null && _selected.Vehicle != null) _selected = null;
+        }
+
+        private static void UpdateSellDetails(Player player)
+        {
+            _unaffordable?.SetActive(false);
+            _insufficientFunds?.SetActive(false);
+            _insufficientRank?.SetActive(false);
+            _deployText.text = "SELL >";
+            GroundVehicle vehicle = _selected != null ? _selected.Vehicle : null;
+            if (vehicle == null || vehicle.disabled)
+            {
+                _vehicleName.text = "";
+                _description.text = "No vehicles to sell here. Bring a vehicle you bought within "
+                    + UnitConverter.DistanceReading(_point != null ? _point.SellRadius : 0f) + " of " + (_point != null ? _point.Name : "the base")
+                    + " and leave it there.";
+                _priceValue.text = _typeValue.text = _remainingValue.text = _infoValue1.text = _infoValue2.text = "-";
+                _deploy.interactable = false;
+                return;
+            }
+
+            VehicleDefinition definition = _selected.Definition;
+            float refund = _selected.Price;
+            _vehicleName.text = definition.unitName;
+            _description.text = "Bought for " + UnitConverter.ValueReading(VehicleShop.Price(definition)) + ", "
+                + UnitConverter.DistanceReading(_point != null && _point.Anchor != null ? Vector3.Distance(vehicle.transform.position, _point.Anchor.position) : 0f)
+                + " from " + (_point != null ? _point.Name : "the base") + "\n" + definition.description;
+            _priceValue.text = "+" + UnitConverter.ValueReading(refund);
+            _typeValue.text = TypeName(definition.vehicleType) + (VehicleDriver.IsStaticDefinition(definition) ? " (STATIC)" : "");
+            _remainingValue.text = UnitConverter.ValueReading(player.Allocation + refund);
+            _infoValue1.text = string.Format("{0:F0}%", VehicleShop.HullHealth(vehicle) * 100f);
+            _infoValue2.text = string.Format("{0:F0}%", VehicleShop.AmmoShare(vehicle) * 100f);
+            _deploy.interactable = true;
+        }
+
+        private static void Sell()
+        {
+            GroundVehicle vehicle = _selected != null ? _selected.Vehicle : null;
+            if (vehicle == null || vehicle.disabled || !GameManager.GetLocalPlayer(out Player player)) return;
+            _sellTarget = vehicle;
+            float refund = VehicleShop.Refund(vehicle);
+            _confirmTitle.text = "Sell " + _selected.Definition.unitName + " ?";
+            _confirmValues.text = UnitConverter.ValueReading(player.Allocation) + " \n+" + UnitConverter.ValueReading(refund)
+                + " \n\n" + UnitConverter.ValueReading(player.Allocation + refund);
+            _confirm.SetActive(true);
+            _confirm.transform.SetAsLastSibling();
+        }
+
+        private static void ConfirmOk()
+        {
+            if (_sellTarget == null)
+            {
+                ConfirmDeploy();
+                return;
+            }
+            GroundVehicle vehicle = _sellTarget;
+            HideConfirm();
+            if (vehicle != null && !vehicle.disabled) PurchaseClient.Sell(_point, vehicle);
+            Refresh();
+        }
+
+        private static void HideConfirm()
+        {
+            _sellTarget = null;
+            if (_confirm != null) _confirm.SetActive(false);
         }
 
         private static string Availability(Player player, Entry entry, out bool restricted)
@@ -254,6 +466,11 @@ namespace PlayableVehicles
 
         private static void UpdateDetails(Player player)
         {
+            if (_sellMode)
+            {
+                UpdateSellDetails(player);
+                return;
+            }
             if (_selected == null)
             {
                 _vehicleName.text = "";
@@ -361,7 +578,6 @@ namespace PlayableVehicles
 
             var features = new List<string>();
             if (vehicle != null && VehicleDeploy.CanDeploy(vehicle)) features.Add(isStatic ? "Self-deploying" : "Deployable");
-            if (definition.CanSlingLoad) features.Add("Sling load");
             if (features.Count > 0) sb.Append(string.Join(", ", features)).Append('\n');
 
             var weapons = new List<string>();
@@ -392,6 +608,40 @@ namespace PlayableVehicles
         private static void StatLine(System.Text.StringBuilder sb, string label, string value)
         {
             sb.Append(label).Append(" :<pos=50%>").Append(value).Append('\n');
+        }
+
+        private static void BuildSellButton(Transform back)
+        {
+            if (back == null) return;
+            GameObject go = Object.Instantiate(back.gameObject, back.parent, false);
+            go.name = "SellButton";
+            LayoutElement layout = go.GetComponent<LayoutElement>();
+            if (layout == null) layout = go.AddComponent<LayoutElement>();
+            layout.ignoreLayout = true;
+            var source = (RectTransform)back;
+            var rect = (RectTransform)go.transform;
+            rect.anchorMin = source.anchorMin;
+            rect.anchorMax = source.anchorMax;
+            rect.pivot = source.pivot;
+            rect.sizeDelta = source.sizeDelta;
+            rect.anchoredPosition = source.anchoredPosition + new Vector2(0f, source.rect.height + SellButtonGap);
+            _sell = go.GetComponent<Button>();
+            if (_sell == null) return;
+            _sell.onClick = new Button.ButtonClickedEvent();
+            _sell.onClick.AddListener(() => SetSellMode(!_sellMode));
+            _sellText = go.GetComponentInChildren<TMP_Text>(true);
+            if (_sellText != null) _sellText.text = "SELL VEHICLE";
+        }
+
+        private static readonly Vector3[] _corners = new Vector3[4];
+
+        private static void FitStats()
+        {
+            if (_stats == null || _sell == null || !(_stats.rectTransform.parent is RectTransform panel)) return;
+            ((RectTransform)_sell.transform).GetWorldCorners(_corners);
+            float bottom = panel.InverseTransformPoint(_corners[1]).y - panel.rect.yMin + SellButtonGap;
+            RectTransform rect = _stats.rectTransform;
+            if (bottom > 0f && Mathf.Abs(rect.offsetMin.y - bottom) > 0.5f) rect.offsetMin = new Vector2(rect.offsetMin.x, bottom);
         }
 
         private static void BuildStats(Transform root)
@@ -442,15 +692,31 @@ namespace PlayableVehicles
         private static void Select(Entry entry, bool force = false)
         {
             if (entry == null || (!force && entry == _selected)) return;
+            Show(entry, force);
+            Refresh();
+        }
+
+        private static void Show(Entry entry, bool force)
+        {
+            if (!force && entry == _selected) return;
             _selected = entry;
+            if (entry == null)
+            {
+                DestroyPreview();
+                _weaponImageArea.SetActive(false);
+                _weaponInfoArea.SetActive(false);
+                if (_stats != null) _stats.text = "";
+                return;
+            }
             ShowWeapon(entry.Definition);
             ShowStats(entry.Definition);
-            ShowPreview(entry.Definition);
-            Refresh();
+            if (entry.Vehicle != null) ShowVehicle(entry);
+            else ShowPreview(entry.Definition);
         }
 
         private static void SelectTab(int type)
         {
+            if (_sellMode) return;
             _tab = type;
             foreach ((Button button, int tabType) in _tabs) PaintTab(button, tabType == _tab);
             foreach (Entry entry in _entries)
@@ -499,22 +765,23 @@ namespace PlayableVehicles
         private static void CycleDepot(int step)
         {
             if (!GameManager.GetLocalHQ(out FactionHQ hq)) return;
-            var depots = new List<VehicleDepot>();
-            foreach (VehicleDepot depot in Object.FindObjectsOfType<VehicleDepot>())
-            {
-                if (VehicleShop.IsOwnDepot(depot, hq)) depots.Add(depot);
-            }
-            if (depots.Count == 0) return;
-            depots.Sort((a, b) => string.CompareOrdinal(a.UniqueName, b.UniqueName));
-            int index = depots.IndexOf(_depot);
-            _depot = depots[((index < 0 ? 0 : index + step) % depots.Count + depots.Count) % depots.Count];
-            if (_selected != null) ShowPreview(_selected.Definition);
+            List<PurchasePoint> points = PurchasePoint.AllOwn(hq);
+            if (points.Count == 0) return;
+            int index = points.IndexOf(_point);
+            _point = points[((index < 0 ? 0 : index + step) % points.Count + points.Count) % points.Count];
+            if (!_sellMode && _selected != null) ShowPreview(_selected.Definition);
             Refresh();
         }
 
         private static void Deploy()
         {
+            if (_sellMode)
+            {
+                Sell();
+                return;
+            }
             if (_selected == null || !GameManager.GetLocalPlayer(out Player player)) return;
+            _sellTarget = null;
             _confirmTitle.text = "Deploy " + _selected.Definition.unitName + " ?";
             _confirmValues.text = UnitConverter.ValueReading(player.Allocation) + " \n-" + UnitConverter.ValueReading(_selected.Price)
                 + " \n\n" + UnitConverter.ValueReading(player.Allocation - _selected.Price);
@@ -525,28 +792,38 @@ namespace PlayableVehicles
         private static void ConfirmDeploy()
         {
             _confirm.SetActive(false);
-            if (_selected == null || _depot == null) return;
-            VehicleDepot depot = _depot;
+            if (_selected == null || _point == null) return;
+            PurchasePoint point = _point;
             VehicleDefinition definition = _selected.Definition;
             Close(false);
-            PurchaseClient.Request(depot, definition, true);
+            PurchaseClient.Request(point, definition, true);
         }
 
         private static void ShowPreview(VehicleDefinition definition)
         {
             DestroyPreview();
-            if (_depot == null) return;
+            if (_point == null || _point.Anchor == null) return;
 
-            Transform depot = _depot.transform;
-            Vector3 point = depot.position;
-            if (Physics.Raycast(point + Vector3.up * PadProbeHeight, Vector3.down, out RaycastHit hit, PadProbeDepth,
-                Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore))
+            Transform anchor = _point.Anchor;
+            Vector3 point = anchor.position;
+            Quaternion rotation;
+            if (_point.IsAirbase && AirbaseSpots.TryFind(_point.Airbase, anchor, definition, out Vector3 spot, out Quaternion spotRotation))
             {
-                point = hit.point;
+                point = spot;
+                rotation = spotRotation;
             }
-            Vector3 forward = Vector3.ProjectOnPlane(depot.forward, Vector3.up);
-            if (forward.sqrMagnitude < 0.01f) forward = Vector3.forward;
-            _preview = VehiclePreview.Create(definition, point, Quaternion.LookRotation(forward, Vector3.up));
+            else
+            {
+                if (Physics.Raycast(point + Vector3.up * PadProbeHeight, Vector3.down, out RaycastHit hit, PadProbeDepth,
+                    Physics.DefaultRaycastLayers, QueryTriggerInteraction.Ignore))
+                {
+                    point = hit.point;
+                }
+                Vector3 forward = Vector3.ProjectOnPlane(anchor.forward, Vector3.up);
+                if (forward.sqrMagnitude < 0.01f) forward = Vector3.forward;
+                rotation = Quaternion.LookRotation(forward, Vector3.up);
+            }
+            _preview = VehiclePreview.Create(definition, point, rotation);
             if (_preview == null) return;
 
             Focus(point, VehiclePreview.ViewDistance(definition));
@@ -557,7 +834,19 @@ namespace PlayableVehicles
             }
         }
 
-        private static void Focus(Vector3 point, float viewDistance)
+        private static void ShowVehicle(Entry entry)
+        {
+            DestroyPreview();
+            Transform target = entry.Vehicle.transform;
+            Focus(target.position, VehiclePreview.ViewDistance(entry.Definition), target);
+            if (_light != null)
+            {
+                _light.transform.position = target.position + Vector3.up * 20f + Vector3.forward * 10f;
+                _light.transform.LookAt(target.position);
+            }
+        }
+
+        private static void Focus(Vector3 point, float viewDistance, Transform target = null)
         {
             CameraStateManager cam = SceneSingleton<CameraStateManager>.i;
             if (cam == null) return;
@@ -573,7 +862,7 @@ namespace PlayableVehicles
 
             GameAccess.SelectionCameraFixedTarget(state) = false;
             GameAccess.SelectionCameraAllowMoveToDropFocus(state) = false;
-            GameAccess.SelectionCameraTarget(state) = _preview.transform;
+            GameAccess.SelectionCameraTarget(state) = target != null ? target : _preview.transform;
             GameAccess.SelectionCameraFollowProxy(state) = _followProxy;
             GameAccess.SelectionCameraDistance(state) = viewDistance;
             GameAccess.SelectionCameraViewDistance(state) = viewDistance;
@@ -632,6 +921,7 @@ namespace PlayableVehicles
             var inventory = t.GetComponentInChildren<AircraftInventoryMenu>(true);
             GameObject buttonPrefab = inventory != null ? inventory.buttonPrefab : null;
             if (buttonPrefab == null) return false;
+            _buttonPrefab = buttonPrefab;
 
             foreach (MonoBehaviour behaviour in t.GetComponentsInChildren<MonoBehaviour>(true))
             {
@@ -685,15 +975,16 @@ namespace PlayableVehicles
             _rcs = Text(t, bottom + "WeaponInfo/weaponCost/rcs_value");
             _cost = Text(t, bottom + "WeaponInfo/weaponCost/cost_value");
             _description = Text(t, bottom + "Description");
-            SetButton(t, "LowRow/LeftPanel/ReturnButton", Close);
+            SetButton(t, "LowRow/LeftPanel/ReturnButton", Back);
+            BuildSellButton(t.Find("LowRow/LeftPanel/ReturnButton"));
 
             string info = "LowRow/RightPanel/InfoPanel/Container/";
-            SetText(t, info + "LoadoutValue", "Price :\n\n");
+            _priceLabel = SetText(t, info + "LoadoutValue", "Price :\n\n");
             _priceValue = Text(t, info + "LoadoutValue/LoadoutValue");
             _unaffordable = t.Find(info + "LoadoutValue/LoadoutUnaffordable")?.gameObject;
             _typeLabel = SetText(t, info + "LoadoutWeight", "Type :\n\n");
             _typeValue = Text(t, info + "LoadoutWeight/LoadoutWeight");
-            SetText(t, info + "TotalWeight", "Remaining :\n\n");
+            _remainingLabel = SetText(t, info + "TotalWeight", "Remaining :\n\n");
             _remainingValue = Text(t, info + "TotalWeight/GrossWeight");
             Transform overWeight = t.Find(info + "TotalWeight/OverWeight");
             if (overWeight != null) overWeight.gameObject.SetActive(false);
@@ -708,8 +999,8 @@ namespace PlayableVehicles
             _confirm = t.Find("BuyConfirmation")?.gameObject;
             _confirmTitle = Text(t, "BuyConfirmation/BuyText");
             _confirmValues = Text(t, "BuyConfirmation/BuyText (1)");
-            SetButton(t, "BuyConfirmation/OKButton", ConfirmDeploy);
-            SetButton(t, "BuyConfirmation/CancelButton", () => _confirm.SetActive(false));
+            SetButton(t, "BuyConfirmation/OKButton", ConfirmOk);
+            SetButton(t, "BuyConfirmation/CancelButton", HideConfirm);
 
             _light = t.Find("SelectionLight")?.GetComponent<Light>();
 
@@ -740,6 +1031,7 @@ namespace PlayableVehicles
             Transform row = t.Find(top + "InventoryMenu/ActionsButtonsRow");
             Transform template = row != null ? row.Find("BUYButton") : null;
             if (template == null) return false;
+            _tabsRow = row.gameObject;
             for (int i = 0; i < row.childCount; i++) row.GetChild(i).gameObject.SetActive(false);
             Transform expand = t.Find(top + "InventoryMenu/ExpandButton");
             if (expand != null) expand.gameObject.SetActive(false);
@@ -1026,9 +1318,9 @@ namespace PlayableVehicles
             }
         }
 
-        private static string DepotName(VehicleDepot depot)
+        private static string DepotName(PurchasePoint point)
         {
-            return depot != null ? depot.unitName.ToUpperInvariant() : "";
+            return point != null ? point.Name.ToUpperInvariant() : "";
         }
 
         private static TMP_Text Text(Transform root, string path)

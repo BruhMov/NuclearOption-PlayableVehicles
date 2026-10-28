@@ -31,7 +31,7 @@ namespace PlayableVehicles
 
     internal static class PvProtocol
     {
-        public const byte Version = 5;
+        public const byte Version = 6;
         public const byte Legacy = 1;
         public const byte FirstVersioned = 2;
     }
@@ -163,7 +163,8 @@ namespace PlayableVehicles
 
     internal struct PvPurchaseRequest
     {
-        public uint DepotId;
+        public PurchasePoint.PointKind PointKind;
+        public uint PointId;
         public ushort VehicleIndex;
         public bool Deploy;
     }
@@ -174,6 +175,20 @@ namespace PlayableVehicles
         public ushort VehicleIndex;
         public uint VehicleId;
         public float Wait;
+    }
+
+    internal struct PvSellRequest
+    {
+        public uint VehicleId;
+        public PurchasePoint.PointKind PointKind;
+        public uint PointId;
+    }
+
+    internal struct PvSellReply
+    {
+        public VehicleShop.Result Result;
+        public uint VehicleId;
+        public float Refund;
     }
 
     internal struct PvServerRules
@@ -416,11 +431,44 @@ namespace PlayableVehicles
 
             Writer<PvPurchaseRequest>.Write = (w, m) =>
             {
-                w.WriteUInt32(m.DepotId);
+                w.WriteByte((byte)m.PointKind);
+                w.WriteUInt32(m.PointId);
                 w.WriteUInt16(m.VehicleIndex);
                 w.WriteBoolean(m.Deploy);
             };
-            Reader<PvPurchaseRequest>.Read = r => new PvPurchaseRequest { DepotId = r.ReadUInt32(), VehicleIndex = r.ReadUInt16(), Deploy = r.ReadBoolean() };
+            Reader<PvPurchaseRequest>.Read = r => new PvPurchaseRequest
+            {
+                PointKind = (PurchasePoint.PointKind)r.ReadByte(),
+                PointId = r.ReadUInt32(),
+                VehicleIndex = r.ReadUInt16(),
+                Deploy = r.ReadBoolean(),
+            };
+
+            Writer<PvSellRequest>.Write = (w, m) =>
+            {
+                w.WriteUInt32(m.VehicleId);
+                w.WriteByte((byte)m.PointKind);
+                w.WriteUInt32(m.PointId);
+            };
+            Reader<PvSellRequest>.Read = r => new PvSellRequest
+            {
+                VehicleId = r.ReadUInt32(),
+                PointKind = (PurchasePoint.PointKind)r.ReadByte(),
+                PointId = r.ReadUInt32(),
+            };
+
+            Writer<PvSellReply>.Write = (w, m) =>
+            {
+                w.WriteByte((byte)m.Result);
+                w.WriteUInt32(m.VehicleId);
+                w.WriteSingle(m.Refund);
+            };
+            Reader<PvSellReply>.Read = r => new PvSellReply
+            {
+                Result = (VehicleShop.Result)r.ReadByte(),
+                VehicleId = r.ReadUInt32(),
+                Refund = r.ReadSingle(),
+            };
 
             Writer<PvPurchaseReply>.Write = (w, m) =>
             {
@@ -511,6 +559,8 @@ namespace PlayableVehicles
             MessagePacker.RegisterMessage<PvDriver>();
             MessagePacker.RegisterMessage<PvPurchaseRequest>();
             MessagePacker.RegisterMessage<PvPurchaseReply>();
+            MessagePacker.RegisterMessage<PvSellRequest>();
+            MessagePacker.RegisterMessage<PvSellReply>();
             MessagePacker.RegisterMessage<PvServerRules>();
             MessagePacker.RegisterMessage<PvDeploy>();
             MessagePacker.RegisterMessage<PvStateRequest>();

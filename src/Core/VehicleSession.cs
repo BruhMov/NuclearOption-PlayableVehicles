@@ -156,22 +156,22 @@ namespace PlayableVehicles
             else if (VehicleSelectionMenu.IsOpen) VehicleSelectionMenu.Close();
             else if (PurchasePanel.IsOpen) PurchasePanel.Close();
             else if (!DynamicMap.mapMaximized && AsVehicle(FollowedUnit()) != null) TryEnterSelected();
-            else if (TryGetSelectedDepot(out VehicleDepot depot))
+            else if (TryGetSelectedPoint(out PurchasePoint point))
             {
-                if (VehicleSelectionMenu.Available) VehicleSelectionMenu.Open(depot);
-                else PurchasePanel.Open(depot);
+                if (VehicleSelectionMenu.Available) VehicleSelectionMenu.Open(point);
+                else PurchasePanel.Open(point);
             }
             else TryEnterSelected();
         }
 
-        private static bool TryGetSelectedDepot(out VehicleDepot depot)
+        private static bool TryGetSelectedPoint(out PurchasePoint point)
         {
-            depot = null;
+            point = null;
             if (!VehicleShop.Enabled || !GameManager.GetLocalHQ(out FactionHQ hq)) return false;
 
-            if (FollowedUnit() is VehicleDepot followed && VehicleShop.IsOwnDepot(followed, hq))
+            if (FollowedUnit() is VehicleDepot followed && PurchasePoint.Of(followed).IsOwn(hq))
             {
-                depot = followed;
+                point = PurchasePoint.Of(followed);
                 return true;
             }
 
@@ -179,9 +179,12 @@ namespace PlayableVehicles
             if (map == null || map.selectedIcons == null) return false;
             foreach (MapIcon icon in map.selectedIcons)
             {
-                if (icon is UnitMapIcon unitIcon && unitIcon.unit is VehicleDepot candidate && VehicleShop.IsOwnDepot(candidate, hq))
+                PurchasePoint candidate = icon is UnitMapIcon unitIcon && unitIcon.unit is VehicleDepot depot ? PurchasePoint.Of(depot)
+                    : icon is AirbaseMapIcon airbaseIcon ? PurchasePoint.Of(airbaseIcon.airbase)
+                    : null;
+                if (candidate != null && candidate.IsOwn(hq))
                 {
-                    depot = candidate;
+                    point = candidate;
                     return true;
                 }
             }

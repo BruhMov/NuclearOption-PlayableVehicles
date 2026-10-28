@@ -28,16 +28,16 @@ namespace PlayableVehicles
                 : 0f;
         }
 
-        public static void Request(VehicleDepot depot, VehicleDefinition definition, bool deploy = false)
+        public static void Request(PurchasePoint point, VehicleDefinition definition, bool deploy = false)
         {
-            if (_pending || depot == null || definition == null) return;
+            if (_pending || point == null || definition == null) return;
             int index = VehicleShop.IndexOf(definition);
             if (index < 0 || index > ushort.MaxValue) return;
 
             if (NetBridge.IsServer)
             {
                 GameManager.GetLocalPlayer(out Player player);
-                VehicleShop.Result result = PurchaseServer.TryPurchase(player, depot, definition, deploy, out GroundVehicle vehicle, out float wait);
+                VehicleShop.Result result = PurchaseServer.TryPurchase(player, point, definition, deploy, out GroundVehicle vehicle, out float wait);
                 OnResult(result, definition, wait, vehicle != null ? vehicle.persistentID.Id : 0u, deploy, false);
                 return;
             }
@@ -52,7 +52,34 @@ namespace PlayableVehicles
             _pendingSince = Time.unscaledTime;
             _pendingDeploy = deploy;
             _late = false;
-            NetBridge.SendToServer(new PvPurchaseRequest { DepotId = depot.persistentID.Id, VehicleIndex = (ushort)index, Deploy = deploy }, Channel.Reliable);
+            NetBridge.SendToServer(new PvPurchaseRequest { PointKind = point.Kind, PointId = point.Id, VehicleIndex = (ushort)index, Deploy = deploy }, Channel.Reliable);
+        }
+
+        public static void Sell(PurchasePoint point, GroundVehicle vehicle)
+        {
+            if (point == null || vehicle == null) return;
+            if (NetBridge.IsServer)
+            {
+                GameManager.GetLocalPlayer(out Player player);
+                VehicleShop.Result result = PurchaseServer.TrySell(player, point, vehicle, out float refund);
+                OnSold(result, vehicle.definition as VehicleDefinition, refund);
+                return;
+            }
+            if (!ClientLink.CanSendRequests()) return;
+            NetBridge.SendToServer(new PvSellRequest { VehicleId = vehicle.persistentID.Id, PointKind = point.Kind, PointId = point.Id }, Channel.Reliable);
+        }
+
+        public static void OnSellReply(INetworkPlayer _, PvSellReply message)
+        {
+            VehicleDefinition definition = UnitRegistry.TryGetUnit(new PersistentID?(new PersistentID { Id = message.VehicleId }), out Unit unit) ? unit.definition as VehicleDefinition : null;
+            OnSold(message.Result, definition, message.Refund);
+        }
+
+        private static void OnSold(VehicleShop.Result result, VehicleDefinition definition, float refund)
+        {
+            string text = VehicleShop.Describe(result, definition);
+            if (result == VehicleShop.Result.Sold) text += ": +" + UnitConverter.ValueReading(refund);
+            ModLog.Notify(text);
         }
 
         public static void OnReply(INetworkPlayer _, PvPurchaseReply message)

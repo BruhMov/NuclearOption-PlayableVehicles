@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.0.3
+
+- **Multiplayer protocol 6: the host and everyone who drives must update together.**
+- **Buy vehicles at your own airbases**, not only at vehicle depots. On the spawn screen in GROUND mode your ground
+  airbases are shown and can be selected, F7 works with an airbase selected on the map, and the arrows in the shop
+  cycle through airbases and depots. The vehicle appears on free ground near the control tower, away from runways and
+  taxiways. Carriers are not purchase points.
+- **Sell vehicles you bought.** Bring the vehicle to a friendly depot (within 200 m) or airbase (within 800 m of the
+  tower), stop and get out, open the shop there and press SELL VEHICLE: the shop switches to your vehicles at that
+  point, the camera shows the selected one, and SELL returns money. You get back the purchase price reduced by hull
+  damage and spent ammunition; an undamaged vehicle with full ammo returns the full price.
+- **Target lock range** now matches the vehicle's longest-range weapon (at least 10 km), so long-range SAMs can lock
+  targets as far as their missiles reach.
+- Compatibility with the game update of 2026-10-28 (map marker colours of your own vehicles).
+
 ## 1.0.2
 
 - **Multiplayer (protocol 5, host and clients must update together)**: the host now measures each driver's ping and
