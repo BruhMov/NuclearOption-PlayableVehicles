@@ -48,4 +48,24 @@ namespace PlayableVehicles
             }
         }
     }
+
+    [OptionalPatch("airbase selection for vehicle purchase on the spawn screen")]
+    [HarmonyPatch(typeof(AirbaseMapIcon), nameof(AirbaseMapIcon.ClickIcon))]
+    internal static class AirbaseMapIcon_ClickIcon_Patch
+    {
+        private static readonly ErrorThrottle Errors = new ErrorThrottle("AirbaseMapIcon.ClickIcon patch");
+
+        private static bool Prefix(AirbaseMapIcon __instance)
+        {
+            try
+            {
+                return !SpawnScreen.SelectAirbase(__instance.airbase);
+            }
+            catch (Exception e)
+            {
+                Errors.Report(e);
+                return true;
+            }
+        }
+    }
 }

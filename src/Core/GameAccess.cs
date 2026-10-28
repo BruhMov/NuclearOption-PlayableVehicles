@@ -133,6 +133,8 @@ namespace PlayableVehicles
         public static AccessTools.FieldRef<VehicleDepot, float> VehicleDepotLastSpawnedTime { get; private set; }
         public static AccessTools.FieldRef<VehicleDepot, Transform> VehicleDepotSpawnTransform { get; private set; }
         public static Func<VehicleDepot, GroundVehicle, UniTask> VehicleDepotMoveVehicleFromDepot { get; private set; }
+        public static AccessTools.FieldRef<Airbase, RoadPathfinding.RoadNetwork> AirbaseTaxiNetwork { get; private set; }
+        public static AccessTools.FieldRef<GameplayUI, Airbase> GameplayUIHomeAirbase { get; private set; }
         public static Action<Player, string> PlayerConvoyDonationMessage { get; private set; }
         public static AccessTools.FieldRef<ContributeToFaction, GameObject> ContributeConvoyPrefab { get; private set; }
         public static AccessTools.FieldRef<GameplayUI, GameObject> GameplayUIAircraftSelectionMenu { get; private set; }
@@ -265,6 +267,8 @@ namespace PlayableVehicles
             VehicleDepotLastSpawnedTime = OptionalField<VehicleDepot, float>("lastSpawnedTime");
             VehicleDepotSpawnTransform = OptionalField<VehicleDepot, Transform>("spawnTransform");
             VehicleDepotMoveVehicleFromDepot = OptionalMethod<Func<VehicleDepot, GroundVehicle, UniTask>>(typeof(VehicleDepot), "MoveVehicleFromDepot", typeof(GroundVehicle));
+            AirbaseTaxiNetwork = OptionalField<Airbase, RoadPathfinding.RoadNetwork>("taxiNetwork");
+            GameplayUIHomeAirbase = OptionalField<GameplayUI, Airbase>("homeAirbase");
             PlayerConvoyDonationMessage = OptionalMethod<Action<Player, string>>(typeof(Player), "RpcConvoyDonationMessage", typeof(string));
             ContributeConvoyPrefab = OptionalField<ContributeToFaction, GameObject>("convoySelectPrefab");
             GameplayUIAircraftSelectionMenu = OptionalField<GameplayUI, GameObject>("aircraftSelectionMenu");

@@ -12,7 +12,7 @@ namespace PlayableVehicles
         private const float ButtonsTop = 30f;
         private const float ButtonsGap = 150f;
 
-        private const string SelectDepotText = "Select Vehicle Depot...";
+        private const string SelectDepotText = "Select Vehicle Depot or Airbase...";
         private const string SelectVehicleText = "SELECT VEHICLE";
 
         private static readonly Color Selected = new Color32(0x40, 0x80, 0x40, 0xFF);
@@ -23,11 +23,11 @@ namespace PlayableVehicles
         private static GameObject _canvas;
         private static Button _air;
         private static Button _ground;
-        private static VehicleDepot _depot;
+        private static PurchasePoint _point;
         private const float ApplyInterval = 0.25f;
         private static float _nextApply;
         private static bool _wasActive;
-        private static VehicleDepot _appliedDepot;
+        private static PurchasePoint _appliedPoint;
         private static string _vanillaPrompt;
         private static string _vanillaButtonText;
 
@@ -51,11 +51,11 @@ namespace PlayableVehicles
             _wasActive = active;
             if (!active) return;
 
-            if (_depot != null && (_depot.disabled || !GameManager.GetLocalHQ(out FactionHQ hq) || !VehicleShop.IsOwnDepot(_depot, hq))) _depot = null;
+            if (_point != null && (!GameManager.GetLocalHQ(out FactionHQ hq) || !_point.IsOwn(hq))) _point = null;
             if (GroundMode)
             {
                 AdoptMapSelection();
-                if (justShown || _depot != _appliedDepot || Time.unscaledTime >= _nextApply) ApplyGround();
+                if (justShown || _point != _appliedPoint || Time.unscaledTime >= _nextApply) ApplyGround();
             }
         }
 
@@ -65,8 +65,8 @@ namespace PlayableVehicles
             _canvas = null;
             _air = null;
             _ground = null;
-            _depot = null;
-            _appliedDepot = null;
+            _point = null;
+            _appliedPoint = null;
             _wasActive = false;
             _nextApply = 0f;
             _vanillaPrompt = null;
@@ -76,7 +76,7 @@ namespace PlayableVehicles
         public static void SelectDepot(VehicleDepot depot)
         {
             if (!GroundMode || !Active || depot == null) return;
-            _depot = depot;
+            _point = PurchasePoint.Of(depot);
             DynamicMap map = SceneSingleton<DynamicMap>.i;
             if (map != null)
             {
@@ -86,15 +86,34 @@ namespace PlayableVehicles
             ApplyGround();
         }
 
+        public static bool SelectAirbase(Airbase airbase)
+        {
+            if (!GroundMode || !Active || airbase == null || !GameManager.GetLocalHQ(out FactionHQ hq)) return false;
+            PurchasePoint point = PurchasePoint.Of(airbase);
+            if (point == null || !point.IsOwn(hq)) return false;
+            _point = point;
+            DynamicMap map = SceneSingleton<DynamicMap>.i;
+            if (map != null)
+            {
+                map.DeselectAllIcons();
+                map.SelectIcon(airbase);
+            }
+            ApplyGround();
+            return true;
+        }
+
         private static void AdoptMapSelection()
         {
             DynamicMap map = SceneSingleton<DynamicMap>.i;
             if (map == null || map.selectedIcons == null || !GameManager.GetLocalHQ(out FactionHQ hq)) return;
             for (int i = map.selectedIcons.Count - 1; i >= 0; i--)
             {
-                if (map.selectedIcons[i] is UnitMapIcon icon && icon.unit is VehicleDepot depot && VehicleShop.IsOwnDepot(depot, hq))
+                PurchasePoint point = map.selectedIcons[i] is UnitMapIcon icon && icon.unit is VehicleDepot depot ? PurchasePoint.Of(depot)
+                    : map.selectedIcons[i] is AirbaseMapIcon airbaseIcon ? PurchasePoint.Of(airbaseIcon.airbase)
+                    : null;
+                if (point != null && point.IsOwn(hq))
                 {
-                    _depot = depot;
+                    _point = point;
                     return;
                 }
             }
@@ -103,9 +122,9 @@ namespace PlayableVehicles
         public static bool TryOpenSelectedDepot()
         {
             if (!GroundMode) return false;
-            if (_depot == null) return true;
-            if (VehicleSelectionMenu.Available) VehicleSelectionMenu.Open(_depot);
-            else PurchasePanel.Open(_depot);
+            if (_point == null) return true;
+            if (VehicleSelectionMenu.Available) VehicleSelectionMenu.Open(_point);
+            else PurchasePanel.Open(_point);
             return true;
         }
 
@@ -113,7 +132,7 @@ namespace PlayableVehicles
         {
             if (GroundMode == ground) return;
             GroundMode = ground;
-            _depot = null;
+            _point = null;
             { DynamicMap single = SceneSingleton<DynamicMap>.i; if (single != null) single.DeselectAllIcons(); }
 
             if (!ground) RestoreAir();
@@ -124,8 +143,7 @@ namespace PlayableVehicles
         private static void ApplyGround()
         {
             _nextApply = Time.unscaledTime + ApplyInterval;
-            _appliedDepot = _depot;
-            { DynamicMap single = SceneSingleton<DynamicMap>.i; if (single != null) single.HideAirbases(); }
+            _appliedPoint = _point;
 
             GameplayUI ui = SceneSingleton<GameplayUI>.i;
             if (ui == null) return;
@@ -135,7 +153,7 @@ namespace PlayableVehicles
             if (prompt != null)
             {
                 if (_vanillaPrompt == null) _vanillaPrompt = prompt.text;
-                string text = _depot != null ? _depot.unitName : SelectDepotText;
+                string text = _point != null ? _point.Name : SelectDepotText;
                 if (prompt.text != text) prompt.text = text;
             }
             if (button != null)
@@ -146,7 +164,7 @@ namespace PlayableVehicles
                     if (_vanillaButtonText == null) _vanillaButtonText = label.text;
                     if (label.text != SelectVehicleText) label.text = SelectVehicleText;
                 }
-                bool show = _depot != null;
+                bool show = _point != null;
                 if (button.gameObject.activeSelf != show) button.gameObject.SetActive(show);
             }
         }

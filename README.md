@@ -4,7 +4,7 @@
 
 Nuclear Option has hundreds of vehicles fighting on the ground, yet you only ever see them from a cockpit. This mod
 puts you behind the wheel: tanks, IFVs, SAM launchers, artillery, supply trucks and tractors. Buy a vehicle at one of
-your faction's depots and drive it straight into the fight, in single player or online.
+your faction's depots or airbases and drive it straight into the fight, in single player or online.
 
 The goal is for the mod to feel like part of the game. The HUD is assembled from the game's own HUD pieces, prices
 come from the game, and kills, base captures and resupply are rewarded by the same rules that apply to pilots.
@@ -13,8 +13,9 @@ come from the game, and kills, base captures and resupply are rewarded by the sa
 
 ## Features
 
-- **Buy vehicles** at your faction's depots for the in-game price. Order one from the tactical map without leaving
-  your aircraft, or pick GROUND on the spawn screen and start the match on the ground.
+- **Buy vehicles** at your faction's depots and airbases for the in-game price, and sell them back when you're done.
+  Order one from the tactical map without leaving your aircraft, or pick GROUND on the spawn screen and start the
+  match on the ground.
 - **Drive** in third person. The handling follows the same physics the AI vehicles use: suspension, grip, and more
   speed on roads than off them.
 - **Fight** with every weapon the vehicle has: cannons, machine guns, ATGMs, SAMs. Lock targets, and the reticle with
@@ -46,7 +47,7 @@ come from the game, and kills, base captures and resupply are rewarded by the sa
 | Key | Action |
 |---|---|
 | F7 | Get in the selected vehicle, or get out |
-| F7 with your own depot selected on the map | Open the vehicle shop |
+| F7 with your own depot or airbase selected on the map | Open the vehicle shop |
 | W A S D | Throttle, brake and reverse, steering |
 | Mouse | Look around and aim the turret |
 | Fire (LMB) | Fire the selected weapon |
@@ -67,13 +68,19 @@ the game's controls menu. The mod's keys are ignored while the chat is open.
 
 ## Buying vehicles
 
-Your faction's vehicle depots are marked on the tactical map. Select one and press F7. A shop opens that looks like
+Your faction's vehicle depots are marked on the tactical map. Select one, or one of your ground airbases, and press
+F7. A shop opens that looks like
 the aircraft selection screen: vehicles are grouped by type, and each one shows its price, weapons and description.
 DEPLOY buys the vehicle and puts you in it right away. If you came in an aircraft, the autopilot keeps it flying
-meanwhile.
+meanwhile. The arrows next to the base name switch between your depots and airbases. At an airbase the vehicle
+appears on free ground near the control tower, away from the runways.
 
-No aircraft? Switch the spawn screen to GROUND, pick a depot on the map and open the shop with the button at the
-bottom of the screen.
+No aircraft? Switch the spawn screen to GROUND, pick a depot or an airbase on the map and open the shop with the
+button at the bottom of the screen.
+
+To sell a vehicle you bought, park it at a friendly depot (within 200 m) or airbase (within 800 m of the tower), get
+out and open the shop there. SELL VEHICLE shows your vehicles at that point; pick one and press SELL. You get back
+the purchase price reduced by hull damage and spent ammunition. BACK returns to buying.
 
 A few rules:
 - A vehicle you buy belongs to you: you get the reward for anything its guns destroy, even while you're driving
@@ -132,7 +139,7 @@ Keys use Unity key names: `F7`, `X`, `UpArrow`, `Keypad5` and so on.
 
 | Setting | Default | What it does |
 |---|---|---|
-| ToggleKey | F7 | Get in the selected vehicle or get out. With your own depot selected on the map, opens the vehicle shop |
+| ToggleKey | F7 | Get in the selected vehicle or get out. With your own depot or airbase selected on the map, opens the vehicle shop |
 | DeployKey | X | Deploy or stow the vehicle (only while standing still). On a tractor it hitches and unhitches a trailer, on a flatbed it loads and unloads a container |
 | FireControlKey | B | Fire control computer for deployed artillery and missile launchers |
 | ForwardKey, ReverseKey, LeftKey, RightKey | W, S, A, D | Throttle, brake and reverse, steering |
