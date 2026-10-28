@@ -132,7 +132,7 @@ Keys use Unity key names: `F7`, `X`, `UpArrow`, `Keypad5` and so on.
 
 | Setting | Default | What it does |
 |---|---|---|
-| DebugLogging | false | Verbose diagnostics in `BepInEx\LogOutput.log`: every air-target check and every fire-mission assignment logs the target's real type, its `radarAlt` and world height. Turn it on to tell apart "wrong unit type" from "bad altitude reading" when a SAM refuses an aircraft ("Not an air target"). Throttled, safe to leave on while testing |
+| DebugLogging | false | Verbose diagnostics in `BepInEx\LogOutput.log`: every air-target check, every fire-mission assignment and every radar-link rescan logs its inputs (target type, `radarAlt`, world height; for the radar link: own radar unit, scanned unit count, chosen radar and distance). Turn it on to tell apart "wrong unit type" from "bad altitude reading" when a SAM refuses an aircraft ("Not an air target"), or to see why a freshly spawned radar is not picked up after the old one died ("NO RADAR LINK - NEED RADAR WITHIN 300 M"). Throttled, safe to leave on while testing |
 
 **[Controls]**
 
