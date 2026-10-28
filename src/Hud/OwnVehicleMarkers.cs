@@ -25,7 +25,7 @@ namespace PlayableVehicles
             }
             else if (_marked.Remove(icon))
             {
-                icon.UnitMapIcon_UpdateColor();
+                icon.UpdateColor();
             }
         }
 
