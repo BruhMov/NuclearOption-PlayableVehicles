@@ -10,16 +10,11 @@
     <NoWarn>$(NoWarn);MSB3277</NoWarn>
   </PropertyGroup>
 
-  <!-- Релизный DLL: без отладочной информации - иначе в DLL остаётся путь к .pdb в папке проекта на диске
-       сборщика. Пути исходников - относительные (сообщения компилятора, CallerFilePath) -->
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
     <DebugType>none</DebugType>
     <PathMap>$(MSBuildProjectDirectory)=.</PathMap>
   </PropertyGroup>
 
-  <!-- Путь к игре (по порядку): dotnet build -p:GameDir="...", локальный GameDir.props (не в git:
-       <Project><PropertyGroup><GameDir>...</GameDir></PropertyGroup></Project>), переменная окружения
-       NUCLEAR_OPTION_DIR, иначе стандартная папка Steam -->
   <Import Project="GameDir.props" Condition="'$(GameDir)' == '' And Exists('GameDir.props')" />
   <PropertyGroup>
     <GameDir Condition="'$(GameDir)' == '' And '$(NUCLEAR_OPTION_DIR)' != ''">$(NUCLEAR_OPTION_DIR)</GameDir>
@@ -28,8 +23,6 @@
     <PluginsDir>$(GameDir)\BepInEx\plugins</PluginsDir>
   </PropertyGroup>
 
-  <!-- Исходники мода только в src/. tools/ - отдельные утилиты со своим csproj, docs/ - справочники,
-       dist/ - релизный архив и публичная копия (dist/github со своими src/) -->
   <ItemGroup>
     <Compile Remove="tools/**;docs/**;dist/**" />
     <None Remove="tools/**;dist/**" />
@@ -52,12 +45,10 @@
       <HintPath>$(ManagedDir)\Mirage.dll</HintPath>
       <Private>false</Private>
     </Reference>
-    <!-- Перегрузки INetworkPlayer.Send используют типы из SocketLayer -->
     <Reference Include="Mirage.SocketLayer">
       <HintPath>$(ManagedDir)\Mirage.SocketLayer.dll</HintPath>
       <Private>false</Private>
     </Reference>
-    <!-- UniTask: ванильные async-методы (выезд машины из ворот базы техники) -->
     <Reference Include="UniTask">
       <HintPath>$(ManagedDir)\UniTask.dll</HintPath>
       <Private>false</Private>
@@ -82,7 +73,6 @@
       <HintPath>$(ManagedDir)\UnityEngine.InputLegacyModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
-    <!-- AudioClip: ванильный звук хитмаркера -->
     <Reference Include="UnityEngine.AudioModule">
       <HintPath>$(ManagedDir)\UnityEngine.AudioModule.dll</HintPath>
       <Private>false</Private>
@@ -95,7 +85,6 @@
       <HintPath>$(ManagedDir)\UnityEngine.TextRenderingModule.dll</HintPath>
       <Private>false</Private>
     </Reference>
-    <!-- UI-типы полей FlightHud/CombatHUD (Canvas, Image, RawImage, TextMeshProUGUI) -->
     <Reference Include="UnityEngine.UIModule">
       <HintPath>$(ManagedDir)\UnityEngine.UIModule.dll</HintPath>
       <Private>false</Private>
@@ -110,7 +99,6 @@
     </Reference>
   </ItemGroup>
 
-  <!-- После сборки кладём DLL в BepInEx\plugins. Если игра запущена и файл занят - только предупреждение, сборка не падает -->
   <Target Name="DeployToGame" AfterTargets="Build" Condition="Exists('$(PluginsDir)')">
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(PluginsDir)" ContinueOnError="WarnAndContinue" />
     <Message Importance="high" Text="PlayableVehicles -> $(PluginsDir)" />
