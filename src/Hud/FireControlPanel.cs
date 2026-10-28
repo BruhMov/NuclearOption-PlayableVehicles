@@ -245,6 +245,12 @@ namespace PlayableVehicles
             ArtillerySolver.Solution solution = CurrentSolution();
             if (solution.Status != ArtillerySolver.Status.Ready) return;
 
+            // SetMission alone only points the turrets at the target; missile seekers are
+            // handed their target via Weapon.SetTarget in FireSelectedWeapon, which reads
+            // _lock.Target. Without a lock the SAM flies with an unprogrammed seeker and
+            // self-destructs almost immediately after launch. Establish the same lock the
+            // mouse-target-select path creates before arming the fire mission.
+            driver.Turrets.SetLock(_shownTarget);
             driver.Turrets.SetMission(_shownTarget, Mode);
             string text = "Fire mission: " + _shownTarget.unitName + ", " + UnitConverter.DistanceReading(solution.Range);
             text += _kind == FireMissionKind.Artillery
