@@ -5,7 +5,12 @@ namespace PlayableVehicles
 {
     internal enum FireMissionKind
     {
-        None,
+        // "General" is not a lack of capability: it is the fallback kind for any weapon station
+        // the fire control screen (Button B) can be opened for, even when the station is neither
+        // an artillery turret nor a missile launcher with a known seeker. Keeping a real value
+        // here instead of None is what removed the old restriction that only artillery or missile
+        // weapons could use the fire mission screen.
+        General,
         Artillery,
         Ballistic,
         AirDefense,
@@ -33,9 +38,14 @@ namespace PlayableVehicles
 
         private static readonly Dictionary<GroundVehicle, RadarLink> _radarLinks = new Dictionary<GroundVehicle, RadarLink>();
 
+        // Which kind of fire mission a weapon station supports. Any station the player can select
+        // gets a kind: artillery turrets solve ballistic shells, missile launchers are classified
+        // by their seeker, and everything else falls back to General so the fire control screen
+        // stays reachable for weapons that are neither artillery nor missiles. Only a missing
+        // station has no kind at all.
         public static FireMissionKind KindOf(WeaponStation station)
         {
-            if (station == null) return FireMissionKind.None;
+            if (station == null) return FireMissionKind.General;
             if (station.Turrets != null)
             {
                 foreach (Turret turret in station.Turrets)
@@ -47,7 +57,7 @@ namespace PlayableVehicles
             MissileSeeker seeker = Seeker(Launcher(station));
             if (seeker is BallisticMissileGuidance) return FireMissionKind.Ballistic;
             if (seeker is SARHSeeker || seeker is IRSeeker || seeker is ARHSeeker) return FireMissionKind.AirDefense;
-            return FireMissionKind.None;
+            return FireMissionKind.General;
         }
 
         public static MissileLauncher Launcher(WeaponStation station)
@@ -249,7 +259,10 @@ namespace PlayableVehicles
             Vector3 toTarget = point - origin;
             solution.Direction = toTarget;
 
-            if (kind == FireMissionKind.Ballistic)
+            // General stations are the weapons that are neither artillery nor a missile with a
+            // known seeker: they have no dedicated mission logic, so they are gated by the same
+            // range limits the ballistic missiles use and otherwise aim straight at the target.
+            if (kind == FireMissionKind.Ballistic || kind == FireMissionKind.General)
             {
                 solution.Range = new Vector3(toTarget.x, 0f, toTarget.z).magnitude;
                 solution.Status = Within(solution.Range, req);

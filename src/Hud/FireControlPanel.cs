@@ -66,12 +66,10 @@ namespace PlayableVehicles
 
             VehicleDriver driver = VehicleSession.IsActive ? VehicleSession.Driver : null;
             if (driver == null || VehicleSession.Vehicle == null) return;
+            // No weapon-class gate any more: the fire control screen opens for whatever station
+            // is selected, artillery, missile or a plain gun. Only an actual mission can be
+            // programmed when the vehicle is in a firing position, so deployment stays required.
             FireMissionKind kind = driver.Turrets.MissionKind;
-            if (kind == FireMissionKind.None)
-            {
-                ModLog.Notify("Fire control: select an artillery or missile weapon");
-                return;
-            }
             if (!TurretController.DeployedForMission(VehicleSession.Vehicle))
             {
                 ModLog.Notify("Fire control: deploy the vehicle first [" + ModConfig.DeployKey.Value + "]");
@@ -133,7 +131,7 @@ namespace PlayableVehicles
             _suppressSlider = false;
             _sliderValue = float.NaN;
             _manual = default;
-            _kind = FireMissionKind.None;
+            _kind = FireMissionKind.General;
             _shownTarget = null;
             _low = default;
             _high = default;
@@ -147,8 +145,8 @@ namespace PlayableVehicles
 
             VehicleDriver driver = VehicleSession.IsActive ? VehicleSession.Driver : null;
             GroundVehicle vehicle = VehicleSession.Vehicle;
-            FireMissionKind kind = driver != null ? driver.Turrets.MissionKind : FireMissionKind.None;
-            if (driver == null || vehicle == null || vehicle.disabled || kind == FireMissionKind.None || !TurretController.DeployedForMission(vehicle))
+            FireMissionKind kind = driver != null ? driver.Turrets.MissionKind : FireMissionKind.General;
+            if (driver == null || vehicle == null || vehicle.disabled || !TurretController.DeployedForMission(vehicle))
             {
                 Close();
                 return;
@@ -175,7 +173,10 @@ namespace PlayableVehicles
                 }
                 else
                 {
-                    _low = target != null ? turrets.PreviewMission(target, FireMode.Missile) : default;
+                    // General stations lay directly on the target like a ballistic missile does,
+                    // so their single preview carries the weapon's own range check.
+                    FireMode mode = _kind == FireMissionKind.General ? FireMode.Low : FireMode.Missile;
+                    _low = target != null ? turrets.PreviewMission(target, mode) : default;
                 }
                 _lowRow.State = _highRow.State = -1;
             }
@@ -198,6 +199,14 @@ namespace PlayableVehicles
                 }
                 _line3.text = ready ? solution.Elevation.ToString("F1") + "°" : "-";
                 _line4.text = ready ? solution.TimeOfFlight.ToString("F0") + " s" : "-";
+            }
+            else if (_kind == FireMissionKind.General)
+            {
+                // A station that is neither artillery nor a missile with a known seeker: there are
+                // no fire mission modes to pick from, so the list stays empty and the panel only
+                // reports the lay data of the selected weapon.
+                _line3.text = ready ? solution.Elevation.ToString("F1") + "°" : "-";
+                _line4.text = station != null ? AmmoSync.Of(VehicleSession.Vehicle, station).Ammo + " / " + station.FullAmmo : "-";
             }
             else
             {
@@ -282,11 +291,16 @@ namespace PlayableVehicles
             _nextRefresh = 0f;
             _lowRow.State = _highRow.State = -1;
             bool artillery = kind == FireMissionKind.Artillery;
+            // General stations have no mission mode to list, so the whole target-mode list is
+            // hidden for them instead of showing a row that can never be armed.
+            bool showList = kind != FireMissionKind.General;
+            _lowRow.Root.SetActive(showList);
             _highRow.Root.SetActive(artillery);
+            if (_autoRow != null) _autoRow.Root.SetActive(artillery);
             if (_elevationSlider != null) _elevationSlider.gameObject.SetActive(artillery);
             if (_elevationCaption != null) _elevationCaption.gameObject.SetActive(artillery);
-            _line3Label.text = artillery ? "Elevation:" : kind == FireMissionKind.Ballistic ? "Warhead:" : "Target altitude:";
-            _line4Label.text = artillery ? "Time of flight:" : "Missiles:";
+            _line3Label.text = artillery || kind == FireMissionKind.General ? "Elevation:" : kind == FireMissionKind.Ballistic ? "Warhead:" : "Target altitude:";
+            _line4Label.text = artillery ? "Time of flight:" : kind == FireMissionKind.General ? "Ammo:" : "Missiles:";
         }
 
         private static void UpdateRow(VanillaWindow.Row row, string caption, FireMode mode, Unit target, in ArtillerySolver.Solution solution)
@@ -341,7 +355,13 @@ namespace PlayableVehicles
                 return artillery ? "ENGAGING - FIRE WHEN READY" : "TARGET ASSIGNED - FIRE TO LAUNCH";
             }
             if (target == null) return _kind == FireMissionKind.AirDefense ? "SELECT AN AIR TARGET ON THE MAP" : "SELECT A TARGET ON THE MAP";
-            if (solution.Status == ArtillerySolver.Status.Ready) return artillery ? "SOLUTION READY" : "READY TO LAUNCH";
+            if (solution.Status == ArtillerySolver.Status.Ready)
+            {
+                // General stations have no mission modes to pick, so the panel only reports that
+                // the target is within the weapon's own range; ENGAGE assigns the lock.
+                return _kind == FireMissionKind.General ? "TARGET IN RANGE - FIRE AT IT"
+                    : artillery ? "SOLUTION READY" : "READY TO LAUNCH";
+            }
             if (solution.Status == ArtillerySolver.Status.NoRadar) return "NO RADAR LINK - NEED RADAR WITHIN 300 M";
             return Reason(solution.Status).ToUpperInvariant();
         }

@@ -299,7 +299,13 @@ namespace PlayableVehicles
                 return false;
             }
             FireMissionKind kind = FireMissions.KindOf(station);
-            if (kind == FireMissionKind.None || (kind == FireMissionKind.Artillery) != (MissionMode != FireMode.Missile))
+            // The mission was armed for a specific class of weapon; switching to a station of a
+            // different class drops it. General is the catch-all class, so an artillery or missile
+            // mission handed to a plain gun station (or the other way round) still counts as a
+            // weapon change and is cancelled.
+            bool missionIsArtillery = MissionMode != FireMode.Missile;
+            bool stationIsArtillery = kind == FireMissionKind.Artillery;
+            if (stationIsArtillery != missionIsArtillery)
             {
                 ClearMission("Fire mission cancelled: weapon changed");
                 return false;
@@ -340,10 +346,14 @@ namespace PlayableVehicles
         public ArtillerySolver.Solution PreviewMission(Unit target, FireMode mode)
         {
             WeaponStation station = SelectedStation;
+            // Only ballistic and air-defence missiles have their own mission check; artillery and
+            // every other weapon (General) go through the gun solver below, which falls back to a
+            // direct lay when the station has no artillery turret.
             FireMissionKind kind = FireMissions.KindOf(station);
             if (kind == FireMissionKind.Ballistic || kind == FireMissionKind.AirDefense) return FireMissions.Check(kind, _vehicle, station, target);
             Turret artillery = ArtilleryTurret(station);
-            if (artillery == null || target == null) return new ArtillerySolver.Solution { Status = ArtillerySolver.Status.OutOfRange };
+            if (target == null) return new ArtillerySolver.Solution { Status = ArtillerySolver.Status.OutOfRange };
+            if (artillery == null) return FireMissions.Check(kind, _vehicle, station, target);
 
             Transform barrel = StationBarrel(station);
             bool hasGun = Ballistics.TryGetGunProfile(station, barrel, out GunProfile profile);
