@@ -370,10 +370,11 @@ namespace PlayableVehicles
         // manual override armed we bypass AimTurret entirely and rotate the turret yaw plus its
         // elevation transform ourselves, so the barrel sits at exactly the chosen angle.
         //
-        // The local X sign is guessed (vanilla prefabs are not readable from here): positive tips
-        // the barrel up on rigs whose elevation pivot has identity rotation. If in-game the barrel
-        // mirrors the slider (goes down when you raise it), flip ManualElevationSign to -1.
-        private const float ManualElevationSign = 1f;
+        // Vanilla's Turret.AimTurret feeds the elevation pivot a NEGATIVE pitch for an "up" shot
+        // (its own elevation convention stores up as negative X), so the manual path uses the same
+        // handedness: subtract the requested degrees from the rest pose. A positive slider angle
+        // then tips the barrel UP. Flip to +1 only if a custom rig mirrors this.
+        private const float ManualElevationSign = -1f;
         private struct TurretRig
         {
             public Quaternion BaseRotation;     // turret root rotation with the pitch removed
@@ -405,7 +406,11 @@ namespace PlayableVehicles
                 return;
             }
             // Keep the turret ring level: any built-in pitch lives on the elevation pivot, which
-            // we re-apply relative to its recorded rest pose.
+            // we offset from its recorded rest pose. The offset is POST-multiplied so it rotates
+            // about the pivot's OWN local X axis - the same axis vanilla AimTurret drives when it
+            // sets this transform's local pitch, so our sign convention matches the game's exactly
+            // (pre-multiplying instead rotated about the world axis, which mirrors for pivots whose
+            // local frame is swapped relative to the turret forward - the nose-down symptom).
             root.rotation = yaw;
             elevation.localRotation = rig.ElevationRest * Quaternion.Euler(ManualElevationSign * elevationDegrees, 0f, 0f);
         }
