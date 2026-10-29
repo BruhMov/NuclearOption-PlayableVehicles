@@ -258,12 +258,12 @@ namespace PlayableVehicles
             handleImage.color = handleColor;
 
             var slider = rootGo.AddComponent<Slider>();
-            slider.direction = Direction.LeftToRight;
+            slider.direction = Slider.Direction.LeftToRight;
             slider.minValue = min;
             slider.maxValue = max;
             slider.wholeNumbers = wholeNumbers;
             slider.transition = Selectable.Transition.None;
-            slider.fillRect = fillImage;
+            slider.fillRect = fillImage.rectTransform;
             slider.handleRect = handleRect;
             slider.targetGraphic = handleImage;
             if (step > 0f)
