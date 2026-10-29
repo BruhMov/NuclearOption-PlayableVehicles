@@ -42,6 +42,8 @@ namespace PlayableVehicles
 
         public static Solution Solve(Turret turret, WeaponInfo info, Vector3 muzzle, Vector3 target, FireMode mode)
         {
+            // Legacy analytic path kept for non-simulated callers; the fire-control slider uses
+            // SolveSimulated/SolveAtElevation so the shell flight matches the integrated model.
             Vector3 toTarget = target - muzzle;
             var horizontal = new Vector3(toTarget.x, 0f, toTarget.z);
             float range = horizontal.magnitude;
@@ -75,11 +77,77 @@ namespace PlayableVehicles
             solution.Direction = horizontal.normalized + Vector3.up * tan;
             solution.Elevation = angle * Mathf.Rad2Deg;
             solution.TimeOfFlight = effective / (speed * Mathf.Cos(angle));
-            float maxElevation = MaxElevation(turret);
-            float minElevation = MinElevation(turret);
-            bool aboveMax = maxElevation > 0f && solution.Elevation > maxElevation;
-            bool belowMin = minElevation != 0f && solution.Elevation < minElevation;
-            solution.Status = aboveMax || belowMin ? Status.ElevationLimit : Status.Ready;
+            // No turret elevation bounds are applied anywhere in this solver (test build): the
+            // game does not reliably expose usable min/maxElevation fields, and enforcing them
+            // produced a static "Beyond elevation limits" verdict at every distance. Any
+            // ballistic solution that exists is accepted; the only rejections left are the
+            // weapon's own min/max range and an unsolvable trajectory (OutOfRange).
+            solution.Status = Status.Ready;
+            return solution;
+        }
+
+        public static Solution SolveAtElevation(in GunProfile profile, Turret turret, Vector3 target, float elevationDegrees)
+        {
+            Vector3 origin = profile.Muzzle.position;
+            Vector3 inherited = profile.InheritedVelocity;
+            float now = Time.realtimeSinceStartup;
+
+            int qe = Quantize(elevationDegrees);
+            int ox = Quantize(origin.x), oy = Quantize(origin.y), oz = Quantize(origin.z);
+            int tx = Quantize(target.x), ty = Quantize(target.y), tz = Quantize(target.z);
+            int vx = Quantize(inherited.x), vy = Quantize(inherited.y), vz = Quantize(inherited.z);
+            for (int i = 0; i < ResultSlots; i++)
+            {
+                ref ResultEntry e = ref _results[i];
+                if (e.Used && e.Sampled && !e.Solved && now - e.Stamp <= ResultLifetime && e.QElevation == qe
+                    && e.Ox == ox && e.Oy == oy && e.Oz == oz && e.Tx == tx && e.Ty == ty && e.Tz == tz
+                    && e.Vx == vx && e.Vy == vy && e.Vz == vz
+                    && e.Speed == profile.Speed && e.Grav == profile.GravMult && e.Drag == profile.DragCoef
+                    && e.Lifetime == profile.Lifetime)
+                {
+                    return e.Solution;
+                }
+            }
+
+            Solution solution = SampleAtElevation(profile, origin, inherited, target, elevationDegrees);
+
+            ref ResultEntry slot = ref _results[_resultNext];
+            _resultNext = (_resultNext + 1) % ResultSlots;
+            slot.Used = true;
+            slot.Sampled = true;
+            slot.Solved = false;
+            slot.Stamp = now;
+            slot.QElevation = qe;
+            slot.Ox = ox; slot.Oy = oy; slot.Oz = oz;
+            slot.Tx = tx; slot.Ty = ty; slot.Tz = tz;
+            slot.Vx = vx; slot.Vy = vy; slot.Vz = vz;
+            slot.Speed = profile.Speed; slot.Grav = profile.GravMult; slot.Drag = profile.DragCoef;
+            slot.Lifetime = profile.Lifetime;
+            slot.Solution = solution;
+            return solution;
+        }
+
+        private static Solution SampleAtElevation(in GunProfile profile, Vector3 origin, Vector3 inherited, Vector3 target, float elevationDegrees)
+        {
+            Vector3 toTarget = target - origin;
+            var horizontal = new Vector3(toTarget.x, 0f, toTarget.z);
+            float want = horizontal.magnitude;
+            var solution = new Solution { Range = want, Elevation = elevationDegrees, Status = Status.OutOfRange };
+            if (want < 1f || profile.Speed <= 0f) return solution;
+
+            Vector3 heading = horizontal / want;
+            Vector3 velocity = inherited + Direction(heading, elevationDegrees) * profile.Speed;
+            if (!Ballistics.CrossDescending(profile, origin, velocity, target.y, out Vector3 point, out float time)) return solution;
+            point -= origin;
+            point.y = 0f;
+            float reached = point.magnitude;
+            if (reached <= 0f) return solution;
+
+            solution.TimeOfFlight = time;
+            solution.Direction = Direction(heading, elevationDegrees);
+            // The gun flies past the target even at the flattest selectable angle: minimum-range
+            // condition ("Too close"), matching what the Low/High scan reports for short targets.
+            solution.Status = reached < want * (1f + RangeTolerance) - 0.5f ? Status.TooClose : Status.Ready;
             return solution;
         }
 
@@ -134,10 +202,13 @@ namespace PlayableVehicles
         private struct ResultEntry
         {
             public bool Used;
+            public bool Solved;   // entry came from the Low/High scan (Mode holds the branch)
+            public bool Sampled;  // entry came from a direct slider sample (QElevation holds the angle)
             public float Stamp;
             public int Mode;
+            public int QElevation;
             public int Ox, Oy, Oz, Tx, Ty, Tz, Vx, Vy, Vz;
-            public float Speed, Grav, Drag, Lifetime, MaxElevation, MinElevation;
+            public float Speed, Grav, Drag, Lifetime;
             public Solution Solution;
         }
 
@@ -148,8 +219,10 @@ namespace PlayableVehicles
         {
             Vector3 origin = profile.Muzzle.position;
             Vector3 inherited = profile.InheritedVelocity;
-            float maxElevation = MaxElevation(turret);
-            float minElevation = MinElevation(turret);
+            // Elevation bounds are not consulted at all in this solver (test build): the game
+            // does not reliably expose usable per-turret min/max elevation fields. The solution
+            // is accepted purely on its ballistic merits; only weapon range limits and an
+            // unsolvable trajectory produce a rejection.
             float now = Time.realtimeSinceStartup;
 
             int modeKey = mode == FireMode.High ? 1 : 0;
@@ -159,29 +232,32 @@ namespace PlayableVehicles
             for (int i = 0; i < ResultSlots; i++)
             {
                 ref ResultEntry e = ref _results[i];
-                if (e.Used && now - e.Stamp <= ResultLifetime && e.Mode == modeKey
+                if (e.Used && e.Solved && now - e.Stamp <= ResultLifetime && e.Mode == modeKey
                     && e.Ox == ox && e.Oy == oy && e.Oz == oz && e.Tx == tx && e.Ty == ty && e.Tz == tz
                     && e.Vx == vx && e.Vy == vy && e.Vz == vz
                     && e.Speed == profile.Speed && e.Grav == profile.GravMult && e.Drag == profile.DragCoef
-                    && e.Lifetime == profile.Lifetime && e.MaxElevation == maxElevation && e.MinElevation == minElevation)
+                    && e.Lifetime == profile.Lifetime)
                 {
                     return e.Solution;
                 }
             }
 
-            Solution solution = SolveCore(profile, origin, inherited, maxElevation, minElevation, target, mode, now - _hintStamp <= HintLifetime);
+            Solution solution = SolveCore(profile, origin, inherited, target, mode, now - _hintStamp <= HintLifetime);
             if (solution.Status == Status.Ready) _hintStamp = now;
 
             ref ResultEntry slot = ref _results[_resultNext];
             _resultNext = (_resultNext + 1) % ResultSlots;
             slot.Used = true;
+            slot.Sampled = false;
+            slot.Solved = true;
             slot.Stamp = now;
             slot.Mode = modeKey;
+            slot.QElevation = 0;
             slot.Ox = ox; slot.Oy = oy; slot.Oz = oz;
             slot.Tx = tx; slot.Ty = ty; slot.Tz = tz;
             slot.Vx = vx; slot.Vy = vy; slot.Vz = vz;
             slot.Speed = profile.Speed; slot.Grav = profile.GravMult; slot.Drag = profile.DragCoef;
-            slot.Lifetime = profile.Lifetime; slot.MaxElevation = maxElevation; slot.MinElevation = minElevation;
+            slot.Lifetime = profile.Lifetime;
             slot.Solution = solution;
             return solution;
         }
@@ -191,7 +267,7 @@ namespace PlayableVehicles
             return Mathf.RoundToInt(value / ResultQuantum);
         }
 
-        internal static Solution SolveCore(in GunProfile profile, Vector3 origin, Vector3 inherited, float maxElevation, float minElevation,
+        internal static Solution SolveCore(in GunProfile profile, Vector3 origin, Vector3 inherited,
             Vector3 target, FireMode mode, bool useHint)
         {
             Vector3 toTarget = target - origin;
@@ -223,13 +299,14 @@ namespace PlayableVehicles
                 }
             }
 
-            float bottom = minElevation > DefaultMinElevation ? minElevation : DefaultMinElevation;
-            float top = maxElevation > 0f ? Mathf.Min(maxElevation, MaxScanElevation) : MaxScanElevation;
-            if (top <= bottom)
-            {
-                solution.Status = Status.ElevationLimit;
-                return solution;
-            }
+            // No turret elevation bounds are used anywhere (test build): the game does not
+            // reliably expose usable min/maxElevation fields, and enforcing them produced static
+            // "Beyond elevation limits" verdicts at every distance. The grid always covers the
+            // full physical envelope [DefaultMinElevation, MaxScanElevation]; if a trajectory
+            // exists inside it the shot is legal. Short-range overshoots (even the flattest shot
+            // flies past the target) report TooClose; long-range failures report OutOfRange.
+            float bottom = DefaultMinElevation;
+            float top = MaxScanElevation;
             int count = Mathf.Min(Mathf.FloorToInt((top - bottom) / ScanStep) + 1, MaxCells);
             if (count < 1) return solution;
             BeginGrid(profile, origin, inherited, heading, target.y, count, bottom);
@@ -266,14 +343,11 @@ namespace PlayableVehicles
             if (outcome == Outcome.Fail) outcome = ExactScan(high, want, count, out cell);
 
             if (outcome == Outcome.OutOfRange) return solution;
-            if (outcome == Outcome.TooClose)
+            // ElevationLimit outcomes can no longer occur (the grid is the full physical
+            // envelope with no turret bounds), but keep the mapping defensively.
+            if (outcome == Outcome.TooClose || outcome == Outcome.ElevationLimit)
             {
                 solution.Status = Status.TooClose;
-                return solution;
-            }
-            if (outcome == Outcome.ElevationLimit)
-            {
-                solution.Status = Status.ElevationLimit;
                 return solution;
             }
 
@@ -382,7 +456,10 @@ namespace PlayableVehicles
                 {
                     if (range >= want)
                     {
-                        if (i == count - 1) return Outcome.ElevationLimit;
+                        // Overshooting even at the top of the full-envelope grid is a minimum-
+                        // range condition ("Too close"), not an elevation-limit failure; the
+                        // turret's real max elevation is validated by the caller afterwards.
+                        if (i == count - 1) return Outcome.TooClose;
                         if (FineRange(i + 1) < want)
                         {
                             cell = i;
@@ -435,7 +512,11 @@ namespace PlayableVehicles
             {
                 int i = peak;
                 while (i + 1 < count && FineRange(i + 1) >= want) i++;
-                if (i + 1 >= count) return Outcome.ElevationLimit;
+                // Overshooting at the TOP of the full envelope means no elevation inside it can
+                // drop the shell short enough: that is a minimum-range ("Too close") condition,
+                // never an elevation-limit failure. (Elevation limits are checked by the caller
+                // against the turret's own max/min after this full-envelope search.)
+                if (i + 1 >= count) return Outcome.TooClose;
                 cell = i;
             }
             else
@@ -444,9 +525,12 @@ namespace PlayableVehicles
                 while (i < peak && FineRange(i) < want) i++;
                 if (i == 0)
                 {
+                    // The flattest scanned trajectory already reaches (or overshoots) the target:
+                    // the gun cannot depress enough to hit so close — report TooClose, not
+                    // ElevationLimit, since the grid floor is the ground-level default and any
+                    // real depression restriction would have made the shot simply unreachable.
                     float r0 = FineRange(0);
-                    if (r0 >= want || (r0 >= 0f && FineRange(peak) >= want)) return Outcome.TooClose;
-                    return Outcome.ElevationLimit;
+                    return r0 >= 0f ? Outcome.TooClose : Outcome.OutOfRange;
                 }
                 cell = i;
             }
@@ -555,16 +639,6 @@ namespace PlayableVehicles
         {
             AimSolver solver = GameAccess.TurretAimSolver != null ? GameAccess.TurretAimSolver(turret) : null;
             return solver != null && GameAccess.AimSolverDragCoef != null ? GameAccess.AimSolverDragCoef(solver) : 1f;
-        }
-
-        private static float MaxElevation(Turret turret)
-        {
-            return turret != null && GameAccess.TurretMaxElevation != null ? GameAccess.TurretMaxElevation(turret) : 0f;
-        }
-
-        private static float MinElevation(Turret turret)
-        {
-            return turret != null && GameAccess.TurretMinElevation != null ? GameAccess.TurretMinElevation(turret) : DefaultMinElevation;
         }
     }
 }

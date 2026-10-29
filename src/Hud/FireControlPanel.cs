@@ -1,19 +1,33 @@
 using System.Collections.Generic;
 using TMPro;
 using UnityEngine;
+using UnityEngine.UI;
 
 namespace PlayableVehicles
 {
     internal static class FireControlPanel
     {
-        private static readonly Vector2 Size = new Vector2(512f, 440f);
+        // Height grew by 40px to make room for the barrel-elevation slider row under the
+        // scrollable target list (ListBottom moved from 222 to 182). The slider occupies the
+        // band between the vanilla button bar (top edge at ~50px) and the status line:
+        //   track centered at SliderY = 72 (row height clamped to 16 -> spans 64..80),
+        //   caption baseline at SliderY + SliderCaptionOffset = 92 (text box spans ~86..98).
+        // Nothing above 98 reaches into the list viewport starting at ListBottom = 182, and
+        // nothing below 64 touches the buttons. AddLine rows stay at their original heights.
+        private static readonly Vector2 Size = new Vector2(512f, 480f);
         private const float ListTop = 56f;
-        private const float ListBottom = 222f;
+        private const float ListBottom = 182f;
+        private const float SliderY = 72f;
+        private const float SliderCaptionOffset = 20f;
+        private const string AutoCaption = "Barrel elevation: AUTO";
+        private const string ManualCaptionPrefix = "Barrel elevation: ";
+        private const float HighBranchDegrees = 45f;
         private const float RefreshInterval = 0.5f;
 
         private static VanillaWindow _window;
         private static VanillaWindow.Row _lowRow;
         private static VanillaWindow.Row _highRow;
+        private static VanillaWindow.Row _autoRow;
         private static TMP_Text _target;
         private static TMP_Text _range;
         private static TMP_Text _line3;
@@ -28,6 +42,15 @@ namespace PlayableVehicles
         private static ArtillerySolver.Solution _low;
         private static ArtillerySolver.Solution _high;
         private static float _nextRefresh;
+
+        // Elevation slider: replaces the binary Low/High choice with a continuous barrel angle.
+        // The locked target stays where it was assigned; only the trajectory branch changes as
+        // the player drags. Null until the window is built; hidden for non-artillery stations.
+        private static Slider _elevationSlider;
+        private static TMP_Text _elevationCaption;
+        private static bool _suppressSlider;   // ignore programmatic SetValueWithoutNotify echoes
+        private static float _sliderValue = float.NaN;
+        private static ArtillerySolver.Solution _manual;
 
         public static bool IsOpen => _window != null && _window.IsOpen;
 
@@ -65,6 +88,22 @@ namespace PlayableVehicles
             {
                 _artilleryMode = driver.Turrets.MissionMode;
             }
+            if (kind == FireMissionKind.Artillery && driver.Turrets.HasManualElevation)
+            {
+                // An active manual override: the slider shows the fixed angle and the preview
+                // comes from sampling at exactly that elevation.
+                _manual = driver.Turrets.MissionActive && driver.Turrets.MissionTarget != null
+                    ? driver.Turrets.PreviewElevation(driver.Turrets.MissionTarget, driver.Turrets.MissionElevation)
+                    : default;
+                _sliderValue = driver.Turrets.MissionElevation;
+                _artilleryMode = driver.Turrets.MissionElevation <= 45f ? FireMode.Low : FireMode.High;
+            }
+            else
+            {
+                _sliderValue = float.NaN;
+                _manual = default;
+            }
+            if (kind == FireMissionKind.Artillery) SyncSlider(driver.Turrets, true);
             _window.Show();
             FireControlMap.Open(_window.Rect);
             Tick();
@@ -81,6 +120,7 @@ namespace PlayableVehicles
             _window = null;
             _lowRow = null;
             _highRow = null;
+            _autoRow = null;
             _target = null;
             _range = null;
             _line3 = null;
@@ -88,6 +128,11 @@ namespace PlayableVehicles
             _line4 = null;
             _line4Label = null;
             _status = null;
+            _elevationSlider = null;
+            _elevationCaption = null;
+            _suppressSlider = false;
+            _sliderValue = float.NaN;
+            _manual = default;
             _kind = FireMissionKind.None;
             _shownTarget = null;
             _low = default;
@@ -121,6 +166,12 @@ namespace PlayableVehicles
                 {
                     _low = target != null ? turrets.PreviewMission(target, FireMode.Low) : default;
                     _high = target != null ? turrets.PreviewMission(target, FireMode.High) : default;
+                    // Keep the slider preview fresh while dragging (moving targets, recoil).
+                    if (turrets.HasManualElevation && target != null)
+                    {
+                        _manual = turrets.PreviewElevation(target, turrets.MissionElevation);
+                        _artilleryMode = turrets.MissionElevation <= 45f ? FireMode.Low : FireMode.High;
+                    }
                 }
                 else
                 {
@@ -137,6 +188,14 @@ namespace PlayableVehicles
             {
                 UpdateRow(_lowRow, "DIRECT FIRE (LOW ANGLE)", FireMode.Low, target, _low);
                 UpdateRow(_highRow, "INDIRECT FIRE (HIGH ANGLE)", FireMode.High, target, _high);
+                // Mark which branch is driving the panel: the slider angle when a manual
+                // override is armed, otherwise the AUTO row.
+                bool manual = turrets.HasManualElevation;
+                if (_autoRow != null && _autoRow.State != (manual ? 0 : 1))
+                {
+                    _autoRow.State = manual ? 0 : 1;
+                    _autoRow.Label.text = manual ? "   AUTO ELEVATION" : "> AUTO ELEVATION";
+                }
                 _line3.text = ready ? solution.Elevation.ToString("F1") + "°" : "-";
                 _line4.text = ready ? solution.TimeOfFlight.ToString("F0") + " s" : "-";
             }
@@ -158,7 +217,62 @@ namespace PlayableVehicles
 
         private static ArtillerySolver.Solution CurrentSolution()
         {
-            return _kind == FireMissionKind.Artillery && _artilleryMode == FireMode.High ? _high : _low;
+            if (_kind == FireMissionKind.Artillery)
+            {
+                TurretController turrets = VehicleSession.IsActive ? VehicleSession.Driver?.Turrets : null;
+                if (turrets != null && turrets.HasManualElevation) return _manual;
+                return _artilleryMode == FireMode.High ? _high : _low;
+            }
+            return _low;
+        }
+
+        // Mirror the turret controller's manual-elevation state into the slider. force=true also
+        // re-clamps the value when the bounds changed (different weapon station selected).
+        private static void SyncSlider(TurretController turrets, bool force)
+        {
+            if (_elevationSlider == null || turrets == null) return;
+            Turret artillery = turrets.ArtilleryTurret(turrets.SelectedStation);
+            TurretController.MissionElevationBounds(artillery, out float min, out float max);
+            _suppressSlider = true;
+            if (force || _elevationSlider.minValue != min || _elevationSlider.maxValue != max)
+            {
+                _elevationSlider.minValue = min;
+                _elevationSlider.maxValue = max;
+            }
+            float wanted = turrets.HasManualElevation ? Mathf.Clamp(turrets.MissionElevation, min, max) : DefaultElevation(min, max);
+            if (force || !Mathf.Approximately(_sliderValue, wanted))
+            {
+                _sliderValue = wanted;
+                _elevationSlider.SetValueWithoutNotify(wanted);
+            }
+            if (_elevationCaption != null)
+            {
+                _elevationCaption.text = turrets.HasManualElevation
+                    ? ManualCaptionPrefix + wanted.ToString("F1") + "\u00b0"
+                    : AutoCaption;
+            }
+            _suppressSlider = false;
+        }
+
+        private static float DefaultElevation(float min, float max)
+        {
+            // Open the slider at the branch matching the currently selected Low/High preset so
+            // dragging it from there feels continuous.
+            float lowish = Mathf.Max(min, 5f);
+            return _artilleryMode == FireMode.High ? Mathf.Min(70f, max) : lowish;
+        }
+
+        private static void OnSliderChanged(float degrees)
+        {
+            if (_suppressSlider) return;
+            _sliderValue = degrees;
+            VehicleDriver driver = VehicleSession.IsActive ? VehicleSession.Driver : null;
+            if (driver == null || _kind != FireMissionKind.Artillery) return;
+            driver.Turrets.SetMissionElevation(degrees);
+            _artilleryMode = degrees <= 45f ? FireMode.Low : FireMode.High;
+            _manual = _shownTarget != null ? driver.Turrets.PreviewElevation(_shownTarget, degrees) : default;
+            _line3Label.text = "Elevation:";
+            Tick();
         }
 
         private static void SetKind(FireMissionKind kind)
@@ -169,6 +283,8 @@ namespace PlayableVehicles
             _lowRow.State = _highRow.State = -1;
             bool artillery = kind == FireMissionKind.Artillery;
             _highRow.Root.SetActive(artillery);
+            if (_elevationSlider != null) _elevationSlider.gameObject.SetActive(artillery);
+            if (_elevationCaption != null) _elevationCaption.gameObject.SetActive(artillery);
             _line3Label.text = artillery ? "Elevation:" : kind == FireMissionKind.Ballistic ? "Warhead:" : "Target altitude:";
             _line4Label.text = artillery ? "Time of flight:" : "Missiles:";
         }
@@ -234,7 +350,47 @@ namespace PlayableVehicles
         {
             if (_kind != FireMissionKind.Artillery) return;
             _artilleryMode = mode;
+            // Choosing a preset hands control back to the automatic solver: the slider moves to
+            // the angle of that branch and returns to AUTO (unless the mission is already being
+            // engaged at a fixed angle, in which case it snaps to the matching preset angle).
+            VehicleDriver driver = VehicleSession.IsActive ? VehicleSession.Driver : null;
+            TurretController turrets = driver != null ? driver.Turrets : null;
+            if (turrets != null)
+            {
+                float solutionAngle = mode == FireMode.High ? _high.Elevation : _low.Elevation;
+                bool valid = float.IsFinite(solutionAngle) && solutionAngle > -90f && solutionAngle < 90f;
+                if (turrets.HasManualElevation)
+                {
+                    if (valid) turrets.SetMissionElevation(solutionAngle);
+                    else turrets.ClearMissionElevation();
+                }
+                else if (valid)
+                {
+                    // Preview only: snap the slider handle to the branch angle without arming
+                    // the manual override, so AUTO keeps tracking the moving target.
+                    TurretController.MissionElevationBounds(turrets.ArtilleryTurret(turrets.SelectedStation), out float min, out float max);
+                    _sliderValue = Mathf.Clamp(solutionAngle, min, max);
+                    _elevationSlider?.SetValueWithoutNotify(_sliderValue);
+                }
+            }
+            _manual = default;
             _lowRow.State = _highRow.State = -1;
+            if (turrets != null) SyncSlider(turrets, true);
+            Tick();
+        }
+
+        // "AUTO ELEVATION" row: drop the fixed-angle override so the solver picks the Low/High
+        // branch again and the slider returns to its AUTO caption.
+        private static void SelectAuto()
+        {
+            VehicleDriver driver = VehicleSession.IsActive ? VehicleSession.Driver : null;
+            TurretController turrets = driver != null ? driver.Turrets : null;
+            if (turrets == null || _kind != FireMissionKind.Artillery) return;
+            turrets.ClearMissionElevation();
+            _manual = default;
+            _sliderValue = float.NaN;
+            _lowRow.State = _highRow.State = -1;
+            SyncSlider(turrets, true);
             Tick();
         }
 
@@ -319,16 +475,46 @@ namespace PlayableVehicles
 
             _lowRow = _window.AddRow("DIRECT FIRE (LOW ANGLE)", null, () => Select(FireMode.Low));
             _highRow = _window.AddRow("INDIRECT FIRE (HIGH ANGLE)", null, () => Select(FireMode.High));
+            // Third row inside the list: hands control back to the automatic Low/High solver.
+            VanillaWindow.Row autoRow = _window.AddRow("AUTO ELEVATION", null, SelectAuto);
             if (_lowRow == null || _highRow == null)
             {
                 _window.Destroy();
                 _window = null;
                 return false;
             }
+            _autoRow = autoRow;
+
+            if (_autoRow != null)
+            {
+                // The AUTO row has no ballistic solution to gate it on; keep it clickable and
+                // give it a hover hint. Its "> " marker is refreshed by Tick().
+                VanillaWindow.SetRowState(_autoRow, true, null);
+                _autoRow.Hover?.SetText("Release the fixed barrel angle and let the solver pick the Low/High branch automatically");
+                _autoRow.Label.text = "   AUTO ELEVATION";
+            }
 
             _window.SetButtonText(_window.Confirm, "ENGAGE");
             _window.Confirm.onClick.AddListener(Engage);
             _window.Cancel.onClick.AddListener(CancelOrCeaseFire);
+
+            // Continuous barrel-angle slider: instead of only Low/High presets the player can
+            // fix any elevation between the turret's travel limits; the target stays locked and
+            // every solution is sampled at exactly that angle. Sits in the band under the status
+            // line (track at SliderY = 72, caption at 92) and above the vanilla button bar; the
+            // scroll list viewport starts at ListBottom = 182 so nothing collides.
+            _elevationSlider = _window.AddSlider(AutoCaption, SliderY, SliderCaptionOffset, 300f,
+                TurretController.MinMissionElevation, TurretController.MaxMissionElevation,
+                TurretController.ElevationStep, false, OnSliderChanged);
+            if (_elevationSlider != null)
+            {
+                // The caption is created as a sibling of the slider row inside the window
+                // content and named "SliderCaption" (see VanillaWindow.AddSlider).
+                Transform caption = _window.Content != null ? _window.Content.Find("SliderCaption") : null;
+                _elevationCaption = caption != null ? caption.GetComponent<TMP_Text>() : null;
+                _elevationSlider.gameObject.SetActive(_kind == FireMissionKind.Artillery);
+                if (_elevationCaption != null) _elevationCaption.gameObject.SetActive(_kind == FireMissionKind.Artillery);
+            }
             return true;
         }
     }
