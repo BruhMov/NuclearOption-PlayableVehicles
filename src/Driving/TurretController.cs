@@ -78,11 +78,57 @@ namespace PlayableVehicles
         public ArtillerySolver.Solution MissionSolution { get; private set; }
         public bool MissionActive => MissionTarget != null && MissionMode != FireMode.None;
 
+        // Manual elevation override chosen with the fire-control slider. The target stays locked
+        // at the assigned position; instead of letting the solver pick the Low or High branch,
+        // the player fixes the exact barrel angle and every solution is sampled at that angle.
+        public const float MinMissionElevation = -10f;
+        public const float MaxMissionElevation = 85f;
+        public const float ElevationStep = 0.5f;
+        private float _missionElevation = float.NaN;
+        public bool HasManualElevation => !float.IsNaN(_missionElevation);
+        public float MissionElevation => _missionElevation;
+
+        // Slider bounds for a turret: prefer the game's own travel limits when they look real
+        // (the fields are optional and unreliable - some turrets report 0/0 or inverted values),
+        // otherwise fall back to the wide physical envelope so the slider always works.
+        public static void MissionElevationBounds(Turret turret, out float minDegrees, out float maxDegrees)
+        {
+            minDegrees = MinMissionElevation;
+            maxDegrees = MaxMissionElevation;
+            if (turret == null || GameAccess.TurretMaxElevation == null) return;
+            float max = GameAccess.TurretMaxElevation(turret);
+            float min = GameAccess.TurretMinElevation != null ? GameAccess.TurretMinElevation(turret) : 0f;
+            if (max > 20f && max <= 90f) maxDegrees = Mathf.Min(max, MaxMissionElevation);
+            if (min < 10f) minDegrees = Mathf.Max(min, MinMissionElevation);
+            if (minDegrees >= maxDegrees)
+            {
+                minDegrees = MinMissionElevation;
+                maxDegrees = MaxMissionElevation;
+            }
+        }
+
+        public void SetMissionElevation(float degrees)
+        {
+            MissionElevationBounds(ArtilleryTurret(SelectedStation), out float min, out float max);
+            _missionElevation = Mathf.Clamp(degrees, min, max);
+            // Force an immediate re-solve so dragging the slider re-aims the gun live.
+            _nextMissionSolve = 0f;
+            _missionSolvedTarget = null;
+        }
+
+        public void ClearMissionElevation()
+        {
+            _missionElevation = float.NaN;
+            _nextMissionSolve = 0f;
+            _missionSolvedTarget = null;
+        }
+
         private const float MissionSolveInterval = 0.5f;
         private float _nextNoRadarNotice;
         private float _nextMissionSolve;
         private Unit _missionSolvedTarget;
         private FireMode _missionSolvedMode;
+        private float _missionSolvedElevation = float.NaN;
 
         public bool HasArtillery => ArtilleryTurret(SelectedStation) != null;
         public FireMissionKind MissionKind => FireMissions.KindOf(SelectedStation);
@@ -104,6 +150,9 @@ namespace PlayableVehicles
 
         public void ClearMission(string reason)
         {
+            // The slider selection is per-mission: dropping the mission drops the fixed angle
+            // so the next target starts from the automatic Low/High behaviour again.
+            ClearMissionElevation();
             if (!MissionActive) return;
             MissionTarget = null;
             MissionMode = FireMode.None;
@@ -137,6 +186,7 @@ namespace PlayableVehicles
             _lock.Clear();
             MissionTarget = null;
             MissionMode = FireMode.None;
+            ClearMissionElevation();
             _solvedStationIndex = -1;
             _weaponTargetStation = null;
             _fireHeld = false;
@@ -238,13 +288,17 @@ namespace PlayableVehicles
 
             Transform barrel = StationBarrel(station);
             Vector3 muzzle = hasGun && profile.Muzzle != null ? profile.Muzzle.position : (barrel != null ? barrel.position : artillery.transform.position);
-            bool due = Time.time >= _nextMissionSolve || _missionSolvedTarget != MissionTarget || _missionSolvedMode != MissionMode;
+            bool due = Time.time >= _nextMissionSolve || _missionSolvedTarget != MissionTarget || _missionSolvedMode != MissionMode
+                || _missionSolvedElevation != _missionElevation;
             if (due)
             {
                 _nextMissionSolve = Time.time + MissionSolveInterval;
                 _missionSolvedTarget = MissionTarget;
                 _missionSolvedMode = MissionMode;
-                MissionSolution = SolveArtillery(artillery, station.WeaponInfo, hasGun, profile, muzzle, MissionTarget, MissionMode);
+                _missionSolvedElevation = _missionElevation;
+                MissionSolution = HasManualElevation
+                    ? SolveAtFixedElevation(artillery, hasGun, profile, muzzle, MissionTarget, _missionElevation)
+                    : SolveArtillery(artillery, station.WeaponInfo, hasGun, profile, muzzle, MissionTarget, MissionMode);
             }
             ArtillerySolver.Solution solution = MissionSolution;
             if (solution.Status != ArtillerySolver.Status.Ready) return false;
@@ -270,6 +324,44 @@ namespace PlayableVehicles
             bool hasGun = Ballistics.TryGetGunProfile(station, barrel, out GunProfile profile);
             Vector3 muzzle = hasGun ? profile.Muzzle.position : (barrel != null ? barrel.position : artillery.transform.position);
             return SolveArtillery(artillery, station.WeaponInfo, hasGun, profile, muzzle, target, mode);
+        }
+
+        // Panel preview for the elevation slider: the shot is sampled at exactly the angle the
+        // player selected, so the displayed elevation/time-of-flight match the gun's aim point.
+        public ArtillerySolver.Solution PreviewElevation(Unit target, float elevationDegrees)
+        {
+            WeaponStation station = SelectedStation;
+            Turret artillery = ArtilleryTurret(station);
+            if (artillery == null || target == null) return new ArtillerySolver.Solution { Status = ArtillerySolver.Status.OutOfRange };
+
+            Transform barrel = StationBarrel(station);
+            bool hasGun = Ballistics.TryGetGunProfile(station, barrel, out GunProfile profile);
+            Vector3 muzzle = hasGun ? profile.Muzzle.position : (barrel != null ? barrel.position : artillery.transform.position);
+            return SolveAtFixedElevation(artillery, hasGun, profile, muzzle, target, elevationDegrees);
+        }
+
+        private ArtillerySolver.Solution SolveAtFixedElevation(Turret artillery, bool hasGun, in GunProfile profile,
+            Vector3 muzzle, Unit target, float elevationDegrees)
+        {
+            Vector3 point = TargetLock.AimPoint(target);
+            if (!hasGun)
+            {
+                // No gun profile to integrate: fall back to the analytic solver and honour the
+                // requested branch (low/high) closest to the chosen angle.
+                WeaponStation station = SelectedStation;
+                ArtillerySolver.Solution analytic = ArtillerySolver.Solve(artillery, station != null ? station.WeaponInfo : null,
+                    muzzle, point, elevationDegrees <= 45f ? FireMode.Low : FireMode.High);
+                analytic.Elevation = elevationDegrees;
+                return analytic;
+            }
+
+            ArtillerySolver.Solution solution = ArtillerySolver.SolveAtElevation(profile, artillery, point, elevationDegrees);
+            Vector3 velocity = TargetLock.Velocity(target);
+            if (solution.Status == ArtillerySolver.Status.Ready && velocity.sqrMagnitude > 1f)
+            {
+                solution = ArtillerySolver.SolveAtElevation(profile, artillery, point + velocity * solution.TimeOfFlight, elevationDegrees);
+            }
+            return solution;
         }
 
         public static ArtillerySolver.Solution SolveArtillery(Turret artillery, WeaponInfo info, bool hasGun, in GunProfile profile,

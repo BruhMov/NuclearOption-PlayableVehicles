@@ -42,6 +42,10 @@ namespace PlayableVehicles
         private GameObject _canvas;
         private GameObject _root;
         private Transform _content;
+
+        // Content root of the window body; used by callers to locate widgets built alongside
+        // the standard rows (e.g. the elevation slider caption created by AddSlider).
+        public Transform Content => _content;
         private Transform _labelTemplate;
         private Transform _valueTemplate;
         private RectTransform _list;
@@ -172,6 +176,110 @@ namespace PlayableVehicles
         {
             TMP_Text label = button.GetComponentInChildren<TMP_Text>(true);
             if (label != null) label.text = text;
+        }
+
+        public TMP_Text AddCaption(string text, float y)
+        {
+            Transform labelTransform = Object.Instantiate(_labelTemplate.gameObject, _content, false).transform;
+            labelTransform.gameObject.SetActive(true);
+            Place((RectTransform)labelTransform, new Vector2(0f, 0f), new Vector2(0f, 0.5f), new Vector2(36f, y));
+            TMP_Text captionText = labelTransform.GetComponent<TMP_Text>();
+            captionText.text = text;
+            return captionText;
+        }
+
+        // Horizontal slider anchored inside the window at a fixed y (from the bottom). The value
+        // is reported through onValue every frame the handle moves. Built from primitives with a
+        // single solid sprite so it does not depend on any vanilla slider layout.
+        public Slider AddSlider(string caption, float y, float captionOffset, float width, float min, float max, float step, bool wholeNumbers, UnityAction<float> onValue)
+        {
+            if (_content == null) return null;
+            GameObject rootGo = new GameObject("SliderRow", typeof(RectTransform));
+            var root = (RectTransform)rootGo.transform;
+            root.SetParent(_content, false);
+            root.anchorMin = root.anchorMax = new Vector2(1f, 0f);
+            root.pivot = new Vector2(1f, 0.5f);
+            root.anchoredPosition = new Vector2(-36f, y);
+            // Keep the track clear of the caption above it: the row is centered on y and half its
+            // height must not reach the caption baseline at y + captionOffset.
+            float maxHeight = Mathf.Max(8f, captionOffset * 2f - 12f);
+            root.sizeDelta = new Vector2(width, Mathf.Min(24f, maxHeight));
+
+            // Caption lives as a sibling of the slider row so callers can toggle it together
+            // with the slider without reaching into the Slider's own transform. The offset is
+            // explicit so the caller controls the vertical band and nothing overlaps the info
+            // lines or the scroll list.
+            TMP_Text captionText = AddCaption(caption, y + captionOffset);
+            if (captionText != null) captionText.name = "SliderCaption";
+
+            Sprite sprite = HudStyle.SolidSprite;
+            Color background = new Color(0.12f, 0.14f, 0.18f, 0.95f);
+            Color fill = new Color(0.35f, 0.65f, 0.95f, 1f);
+            Color handleColor = Color.white;
+
+            GameObject bgGo = new GameObject("Background", typeof(RectTransform), typeof(Image));
+            var bg = (RectTransform)bgGo.transform;
+            bg.SetParent(root, false);
+            bg.anchorMin = new Vector2(0f, 0.25f);
+            bg.anchorMax = new Vector2(1f, 0.75f);
+            bg.offsetMin = bg.offsetMax = Vector2.zero;
+            bgGo.GetComponent<Image>().sprite = sprite;
+            bgGo.GetComponent<Image>().color = background;
+
+            GameObject fillAreaGo = new GameObject("Fill Area", typeof(RectTransform));
+            var fillArea = (RectTransform)fillAreaGo.transform;
+            fillArea.SetParent(bg, false);
+            fillArea.anchorMin = Vector2.zero;
+            fillArea.anchorMax = Vector2.one;
+            fillArea.offsetMin = new Vector2(4f, 0f);
+            fillArea.offsetMax = new Vector2(-4f, 0f);
+
+            GameObject fillGo = new GameObject("Fill", typeof(RectTransform), typeof(Image));
+            var fillRect = (RectTransform)fillGo.transform;
+            fillRect.SetParent(fillArea, false);
+            fillRect.anchorMin = Vector2.zero;
+            fillRect.anchorMax = Vector2.one;
+            fillRect.offsetMin = fillRect.offsetMax = Vector2.zero;
+            Image fillImage = fillGo.GetComponent<Image>();
+            fillImage.sprite = sprite;
+            fillImage.color = fill;
+            fillImage.type = Image.Type.Filled;
+            fillImage.fillMethod = Image.FillMethod.Horizontal;
+            fillImage.fillOrigin = 0;
+
+            GameObject handleGo = new GameObject("Handle", typeof(RectTransform), typeof(Image));
+            var handleRect = (RectTransform)handleGo.transform;
+            handleRect.SetParent(fillArea, false);
+            handleRect.anchorMin = handleRect.anchorMax = new Vector2(0f, 0.5f);
+            handleRect.pivot = new Vector2(0.5f, 0.5f);
+            handleRect.sizeDelta = new Vector2(14f, 22f);
+            Image handleImage = handleGo.GetComponent<Image>();
+            handleImage.sprite = sprite;
+            handleImage.color = handleColor;
+
+            var slider = rootGo.AddComponent<Slider>();
+            slider.direction = Direction.LeftToRight;
+            slider.minValue = min;
+            slider.maxValue = max;
+            slider.wholeNumbers = wholeNumbers;
+            slider.transition = Selectable.Transition.None;
+            slider.fillRect = fillImage;
+            slider.handleRect = handleRect;
+            slider.targetGraphic = handleImage;
+            if (step > 0f)
+            {
+                slider.onValueChanged.AddListener(value =>
+                {
+                    float snapped = Mathf.Round(value / step) * step;
+                    if (!Mathf.Approximately(snapped, value)) slider.SetValueWithoutNotify(Mathf.Clamp(snapped, min, max));
+                    onValue?.Invoke(Mathf.Clamp(snapped, min, max));
+                });
+            }
+            else if (onValue != null)
+            {
+                slider.onValueChanged.AddListener(onValue);
+            }
+            return slider;
         }
 
         public Row AddRow(string text, Sprite icon, UnityAction onClick)

@@ -142,6 +142,30 @@ namespace PlayableVehicles
             return text;
         }
 
+        // 1x1 opaque white sprite shared by procedurally built widgets (sliders, bars) so they
+        // render without depending on any game atlas.
+        private static Sprite _solid;
+
+        public static Sprite SolidSprite
+        {
+            get
+            {
+                if (_solid != null) return _solid;
+                var tex = new Texture2D(1, 1, TextureFormat.RGBA32, false)
+                {
+                    name = "PlayableVehicles Solid",
+                    hideFlags = HideFlags.DontSave,
+                    filterMode = FilterMode.Bilinear,
+                    wrapMode = TextureWrapMode.Clamp,
+                };
+                tex.SetPixel(0, 0, Color.white);
+                tex.Apply();
+                _solid = Sprite.Create(tex, new Rect(0f, 0f, 1f, 1f), new Vector2(0.5f, 0.5f), 100f);
+                _solid.hideFlags = HideFlags.DontSave;
+                return _solid;
+            }
+        }
+
         public static Texture2D CreateRingTexture(int size, float thickness)
         {
             var tex = new Texture2D(size, size, TextureFormat.RGBA32, false);
