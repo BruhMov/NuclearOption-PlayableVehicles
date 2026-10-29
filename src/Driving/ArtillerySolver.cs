@@ -48,11 +48,18 @@ namespace PlayableVehicles
             var solution = new Solution { Range = range, Status = Status.OutOfRange };
             if (info == null || range < 1f) return solution;
 
+            TargetRequirements req = info.targetRequirements;
+            if (req.minRange > 0f && range < req.minRange)
+            {
+                solution.Status = Status.TooClose;
+                return solution;
+            }
+
             float speed = info.GetMaxSpeed();
             float gravity = 9.81f * info.gravMult;
             if (speed <= 0f || gravity <= 0f) return solution;
 
-            float maxRange = info.targetRequirements.maxRange;
+            float maxRange = req.maxRange;
             float ratio = maxRange > 0f ? range / maxRange : 0f;
             float drag = DragCoef(turret);
             float effective = ratio > 0.2f ? Mathf.Lerp(range * (1f + 0.5f * drag), range * (1f + 1.5f * drag), ratio) : range;
@@ -69,12 +76,15 @@ namespace PlayableVehicles
             solution.Elevation = angle * Mathf.Rad2Deg;
             solution.TimeOfFlight = effective / (speed * Mathf.Cos(angle));
             float maxElevation = MaxElevation(turret);
-            solution.Status = maxElevation > 0f && solution.Elevation > maxElevation ? Status.ElevationLimit : Status.Ready;
+            float minElevation = MinElevation(turret);
+            bool aboveMax = maxElevation > 0f && solution.Elevation > maxElevation;
+            bool belowMin = minElevation != 0f && solution.Elevation < minElevation;
+            solution.Status = aboveMax || belowMin ? Status.ElevationLimit : Status.Ready;
             return solution;
         }
 
         private const float ScanStep = 2f;
-        private const float MinScanElevation = -10f;
+        private const float DefaultMinElevation = -10f;
         private const float MaxScanElevation = 86f;
         private const int MaxCells = 64;
         private const int RefineIterations = 12;
@@ -95,6 +105,7 @@ namespace PlayableVehicles
         {
             Found,
             ElevationLimit,
+            TooClose,
             OutOfRange,
             Fail,
         }
@@ -104,6 +115,7 @@ namespace PlayableVehicles
         private static Vector3 _gInherited;
         private static Vector3 _gHeading;
         private static float _gTargetY;
+        private static float _gMinElev;
         private static int _gCount = -1;
         private static readonly float[] _fine = new float[MaxCells];
         private static readonly float[] _fineTime = new float[MaxCells];
@@ -112,6 +124,7 @@ namespace PlayableVehicles
         private static int _hintLow = -1;
         private static int _hintHigh = -1;
         private static int _hintCount = -1;
+        private static float _hintBottom = -1f;
         private static float _hintSpeed;
         private static float _hintGrav;
         private static float _hintDrag;
@@ -124,7 +137,7 @@ namespace PlayableVehicles
             public float Stamp;
             public int Mode;
             public int Ox, Oy, Oz, Tx, Ty, Tz, Vx, Vy, Vz;
-            public float Speed, Grav, Drag, Lifetime, MaxElevation;
+            public float Speed, Grav, Drag, Lifetime, MaxElevation, MinElevation;
             public Solution Solution;
         }
 
@@ -136,6 +149,7 @@ namespace PlayableVehicles
             Vector3 origin = profile.Muzzle.position;
             Vector3 inherited = profile.InheritedVelocity;
             float maxElevation = MaxElevation(turret);
+            float minElevation = MinElevation(turret);
             float now = Time.realtimeSinceStartup;
 
             int modeKey = mode == FireMode.High ? 1 : 0;
@@ -149,13 +163,13 @@ namespace PlayableVehicles
                     && e.Ox == ox && e.Oy == oy && e.Oz == oz && e.Tx == tx && e.Ty == ty && e.Tz == tz
                     && e.Vx == vx && e.Vy == vy && e.Vz == vz
                     && e.Speed == profile.Speed && e.Grav == profile.GravMult && e.Drag == profile.DragCoef
-                    && e.Lifetime == profile.Lifetime && e.MaxElevation == maxElevation)
+                    && e.Lifetime == profile.Lifetime && e.MaxElevation == maxElevation && e.MinElevation == minElevation)
                 {
                     return e.Solution;
                 }
             }
 
-            Solution solution = SolveCore(profile, origin, inherited, maxElevation, target, mode, now - _hintStamp <= HintLifetime);
+            Solution solution = SolveCore(profile, origin, inherited, maxElevation, minElevation, target, mode, now - _hintStamp <= HintLifetime);
             if (solution.Status == Status.Ready) _hintStamp = now;
 
             ref ResultEntry slot = ref _results[_resultNext];
@@ -167,7 +181,7 @@ namespace PlayableVehicles
             slot.Tx = tx; slot.Ty = ty; slot.Tz = tz;
             slot.Vx = vx; slot.Vy = vy; slot.Vz = vz;
             slot.Speed = profile.Speed; slot.Grav = profile.GravMult; slot.Drag = profile.DragCoef;
-            slot.Lifetime = profile.Lifetime; slot.MaxElevation = maxElevation;
+            slot.Lifetime = profile.Lifetime; slot.MaxElevation = maxElevation; slot.MinElevation = minElevation;
             slot.Solution = solution;
             return solution;
         }
@@ -177,7 +191,7 @@ namespace PlayableVehicles
             return Mathf.RoundToInt(value / ResultQuantum);
         }
 
-        internal static Solution SolveCore(in GunProfile profile, Vector3 origin, Vector3 inherited, float maxElevation,
+        internal static Solution SolveCore(in GunProfile profile, Vector3 origin, Vector3 inherited, float maxElevation, float minElevation,
             Vector3 target, FireMode mode, bool useHint)
         {
             Vector3 toTarget = target - origin;
@@ -209,16 +223,22 @@ namespace PlayableVehicles
                 }
             }
 
+            float bottom = minElevation > DefaultMinElevation ? minElevation : DefaultMinElevation;
             float top = maxElevation > 0f ? Mathf.Min(maxElevation, MaxScanElevation) : MaxScanElevation;
-            int count = Mathf.Min(Mathf.FloorToInt((top - MinScanElevation) / ScanStep) + 1, MaxCells);
+            if (top <= bottom)
+            {
+                solution.Status = Status.ElevationLimit;
+                return solution;
+            }
+            int count = Mathf.Min(Mathf.FloorToInt((top - bottom) / ScanStep) + 1, MaxCells);
             if (count < 1) return solution;
-            BeginGrid(profile, origin, inherited, heading, target.y, count);
+            BeginGrid(profile, origin, inherited, heading, target.y, count, bottom);
 
             bool high = mode == FireMode.High;
             Outcome outcome = Outcome.Fail;
             int cell = -1;
 
-            if (useHint && _hintCount == count && _hintSpeed == profile.Speed && _hintGrav == profile.GravMult
+            if (useHint && _hintCount == count && _hintBottom == bottom && _hintSpeed == profile.Speed && _hintGrav == profile.GravMult
                 && _hintDrag == profile.DragCoef && _hintLifetime == profile.Lifetime)
             {
                 int hint = high ? _hintHigh : _hintLow;
@@ -232,8 +252,8 @@ namespace PlayableVehicles
                 if (vacuumAngles)
                 {
                     start = high
-                        ? Mathf.Clamp(Mathf.CeilToInt((highAngle - MinScanElevation) / ScanStep) + 1, 0, count - 1)
-                        : Mathf.Clamp(Mathf.FloorToInt((lowAngle - MinScanElevation) / ScanStep) - 1, 0, count - 1);
+                        ? Mathf.Clamp(Mathf.CeilToInt((highAngle - bottom) / ScanStep) + 1, 0, count - 1)
+                        : Mathf.Clamp(Mathf.FloorToInt((lowAngle - bottom) / ScanStep) - 1, 0, count - 1);
                 }
 
                 int candidate = CoarseCandidate(high, want, count, start);
@@ -246,6 +266,11 @@ namespace PlayableVehicles
             if (outcome == Outcome.Fail) outcome = ExactScan(high, want, count, out cell);
 
             if (outcome == Outcome.OutOfRange) return solution;
+            if (outcome == Outcome.TooClose)
+            {
+                solution.Status = Status.TooClose;
+                return solution;
+            }
             if (outcome == Outcome.ElevationLimit)
             {
                 solution.Status = Status.ElevationLimit;
@@ -254,6 +279,7 @@ namespace PlayableVehicles
 
             if (high) _hintHigh = cell;
             else _hintLow = cell;
+            _hintBottom = bottom;
             _hintCount = count;
             _hintSpeed = profile.Speed;
             _hintGrav = profile.GravMult;
@@ -263,9 +289,9 @@ namespace PlayableVehicles
             return Refine(high, cell, want, solution);
         }
 
-        private static void BeginGrid(in GunProfile profile, Vector3 origin, Vector3 inherited, Vector3 heading, float targetY, int count)
+        private static void BeginGrid(in GunProfile profile, Vector3 origin, Vector3 inherited, Vector3 heading, float targetY, int count, float bottom)
         {
-            bool same = _gCount == count && _gTargetY == targetY && Same(_gOrigin, origin) && Same(_gInherited, inherited)
+            bool same = _gCount == count && _gTargetY == targetY && _gMinElev == bottom && Same(_gOrigin, origin) && Same(_gInherited, inherited)
                 && Same(_gHeading, heading) && _gProfile.Speed == profile.Speed && _gProfile.GravMult == profile.GravMult
                 && _gProfile.DragCoef == profile.DragCoef && _gProfile.Lifetime == profile.Lifetime;
             if (same) return;
@@ -278,6 +304,7 @@ namespace PlayableVehicles
             _gHeading = heading;
             _gTargetY = targetY;
             _gCount = count;
+            _gMinElev = bottom;
             for (int i = 0; i < count; i++)
             {
                 _fine[i] = float.NaN;
@@ -292,7 +319,7 @@ namespace PlayableVehicles
 
         private static float Elevation(int cell)
         {
-            return MinScanElevation + cell * ScanStep;
+            return _gMinElev + cell * ScanStep;
         }
 
         private static float FineRange(int cell)
@@ -365,7 +392,7 @@ namespace PlayableVehicles
                     }
                     else
                     {
-                        if (i == 0) return Outcome.Fail;
+                        if (i == 0) return Outcome.TooClose;
                         if (range >= 0f && FineRange(i - 1) <= range) return Outcome.Fail;
                         i--;
                     }
@@ -374,7 +401,7 @@ namespace PlayableVehicles
                 {
                     if (range >= want)
                     {
-                        if (i == 0) return Outcome.ElevationLimit;
+                        if (i == 0) return Outcome.TooClose;
                         if (FineRange(i - 1) < want)
                         {
                             cell = i;
@@ -415,7 +442,12 @@ namespace PlayableVehicles
             {
                 int i = 0;
                 while (i < peak && FineRange(i) < want) i++;
-                if (i == 0) return Outcome.ElevationLimit;
+                if (i == 0)
+                {
+                    float r0 = FineRange(0);
+                    if (r0 >= want || (r0 >= 0f && FineRange(peak) >= want)) return Outcome.TooClose;
+                    return Outcome.ElevationLimit;
+                }
                 cell = i;
             }
             return Outcome.Found;
@@ -528,6 +560,11 @@ namespace PlayableVehicles
         private static float MaxElevation(Turret turret)
         {
             return turret != null && GameAccess.TurretMaxElevation != null ? GameAccess.TurretMaxElevation(turret) : 0f;
+        }
+
+        private static float MinElevation(Turret turret)
+        {
+            return turret != null && GameAccess.TurretMinElevation != null ? GameAccess.TurretMinElevation(turret) : DefaultMinElevation;
         }
     }
 }
