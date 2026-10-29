@@ -78,6 +78,11 @@ namespace PlayableVehicles
         public ArtillerySolver.Solution MissionSolution { get; private set; }
         public bool MissionActive => MissionTarget != null && MissionMode != FireMode.None;
 
+        // The branch the WEAPON is asked to fire: Low or High. A fixed slider angle cannot be
+        // forwarded to the game's gun aiming, so it is reported as its nearest branch and the
+        // barrel itself is steered by AimTurrets (see ManualAim).
+        public FireMode MissionFireMode => HasManualElevation ? (MissionElevation <= 45f ? FireMode.Low : FireMode.High) : MissionMode;
+
         // Manual elevation override chosen with the fire-control slider. The target stays locked
         // at the assigned position; instead of letting the solver pick the Low or High branch,
         // the player fixes the exact barrel angle and every solution is sampled at that angle.
@@ -142,11 +147,25 @@ namespace PlayableVehicles
             _lock.Set(_vehicle, target);
         }
 
+        // The angle the slider had when the mission was armed, so re-arming on the same target
+        // does not silently drop back to AUTO (which would snap the barrel to a Low/High branch).
+        private float _missionElevationAtSet = float.NaN;
+
         public void SetMission(Unit target, FireMode mode)
         {
+            float manual = _missionElevation;
+            if (target == null) manual = float.NaN;
             MissionTarget = target;
             MissionMode = target != null ? mode : FireMode.None;
+            _missionElevationAtSet = manual;
+            // Engaging with a fixed slider angle must keep firing at that angle: AimTurret and
+            // the weapon's own aiming routine both re-solve and would otherwise pull the barrel
+            // back to the nearest Low/High branch. Re-assert the override after the call chain
+            // settles (next frame), which also forces an immediate re-solve at that elevation.
+            if (!float.IsNaN(manual)) _reassertElevation = true;
         }
+
+        private bool _reassertElevation;
 
         public void ClearMission(string reason)
         {
@@ -223,6 +242,9 @@ namespace PlayableVehicles
             _pendingShots = 0;
             RemoteNotice = null;
             _vehicle = null;
+            // The rig cache is keyed by Turret instances; since those get destroyed with the
+            // vehicle, leaving stale entries behind leaks their Unity object references.
+            _rigs.Clear();
         }
 
         public void AimTurrets()
@@ -249,7 +271,10 @@ namespace PlayableVehicles
                 bool stationTurret = station != null && station.Turrets != null && station.Turrets.Contains(turret);
                 if (mission && stationTurret && ArtillerySolver.IsArtillery(turret))
                 {
-                    GameAccess.TurretAimTurret(turret, MissionSolution.Direction);
+                    // Fixed slider angle: AimTurret would re-solve and snap the barrel back to a
+                    // Low/High branch, so drive the transforms directly instead.
+                    if (HasManualElevation) ManualAim(turret, MissionSolution.Direction, MissionElevation);
+                    else GameAccess.TurretAimTurret(turret, MissionSolution.Direction);
                     if (i == 0) TurretForward = turret.transform.forward;
                     continue;
                 }
@@ -338,6 +363,51 @@ namespace PlayableVehicles
             bool hasGun = Ballistics.TryGetGunProfile(station, barrel, out GunProfile profile);
             Vector3 muzzle = hasGun ? profile.Muzzle.position : (barrel != null ? barrel.position : artillery.transform.position);
             return SolveAtFixedElevation(artillery, hasGun, profile, muzzle, target, elevationDegrees);
+        }
+
+        // The gun's own aiming routine is driven by the game's ballistic solver, which only ever
+        // returns a Low or High branch - that is why a slider angle appeared to be ignored. With a
+        // manual override armed we bypass AimTurret entirely and rotate the turret yaw plus its
+        // elevation transform ourselves, so the barrel sits at exactly the chosen angle.
+        //
+        // The local X sign is guessed (vanilla prefabs are not readable from here): positive tips
+        // the barrel up on rigs whose elevation pivot has identity rotation. If in-game the barrel
+        // mirrors the slider (goes down when you raise it), flip ManualElevationSign to -1.
+        private const float ManualElevationSign = 1f;
+        private struct TurretRig
+        {
+            public Quaternion BaseRotation;     // turret root rotation with the pitch removed
+            public Quaternion ElevationRest;    // elevation pivot local rotation at rest
+        }
+        private static readonly Dictionary<Turret, TurretRig> _rigs = new Dictionary<Turret, TurretRig>();
+
+        private static void ManualAim(Turret turret, Vector3 heading, float elevationDegrees)
+        {
+            if (turret == null || heading.sqrMagnitude < 1e-6f) return;
+            Transform root = turret.transform;
+            Vector3 flat = new Vector3(heading.x, 0f, heading.z);
+            if (flat.sqrMagnitude < 1e-6f) return;
+            Quaternion yaw = Quaternion.LookRotation(flat, Vector3.up);
+            Transform elevation = GameAccess.TurretElevationTransform != null ? GameAccess.TurretElevationTransform(turret) : null;
+            if (!_rigs.TryGetValue(turret, out TurretRig rig))
+            {
+                // Sampled once, before this code ever moves the rig: whatever pitch the prefab
+                // carries (or the AI/vanilla aim left behind) becomes the zero of the slider.
+                rig.ElevationRest = elevation != null ? elevation.localRotation : Quaternion.identity;
+                rig.BaseRotation = elevation != null
+                    ? Quaternion.identity
+                    : Quaternion.Inverse(yaw) * root.rotation;
+                _rigs[turret] = rig;
+            }
+            if (elevation == null)
+            {
+                root.rotation = yaw * rig.BaseRotation * Quaternion.Euler(ManualElevationSign * elevationDegrees, 0f, 0f);
+                return;
+            }
+            // Keep the turret ring level: any built-in pitch lives on the elevation pivot, which
+            // we re-apply relative to its recorded rest pose.
+            root.rotation = yaw;
+            elevation.localRotation = rig.ElevationRest * Quaternion.Euler(ManualElevationSign * elevationDegrees, 0f, 0f);
         }
 
         private ArtillerySolver.Solution SolveAtFixedElevation(Turret artillery, bool hasGun, in GunProfile profile,
